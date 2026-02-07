@@ -2,6 +2,11 @@ const express = require('express');
 const Enrollment = require('../models/Enrollment');
 const Lesson = require('../models/Lesson');
 const { auth } = require('../middleware/auth');
+const sgMail = require('@sendgrid/mail');
+
+if (process.env.SENDGRID_API_KEY) {
+    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+}
 
 const router = express.Router();
 
@@ -248,6 +253,10 @@ router.post('/invite', auth, async (req, res) => {
         const successEmails = [];
         const failedEmails = [];
         const User = require('../models/User');
+        const Course = require('../models/Course');
+
+        const course = await Course.findById(courseId);
+        const courseTitle = course ? course.title : 'the course';
 
         for (const email of emails) {
             try {
@@ -277,6 +286,25 @@ router.post('/invite', auth, async (req, res) => {
                     totalPoints: 0
                 });
 
+                // Send Welcome Email
+                try {
+                    const msg = {
+                        to: email,
+                        from: process.env.SENDER_EMAIL || 'noreply@learnsphere.com',
+                        subject: `Welcome to ${courseTitle}`,
+                        text: `You have been enrolled in ${courseTitle}. Log in to start learning.`,
+                        html: `<div style="font-family: Arial, sans-serif; line-height: 1.6;">
+                                 <h3>Welcome to ${courseTitle}!</h3>
+                                 <p>You have been enrolled in the course.</p>
+                                 <p><a href="http://localhost:5173" style="background: #3B5BFF; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Go to Course</a></p>
+                               </div>`
+                    };
+                    await sgMail.send(msg);
+                } catch (emailErr) {
+                    console.error('Failed to send welcome email to', email, emailErr);
+                    // Don't fail the enrollment, just log error
+                }
+
                 successEmails.push(email);
             } catch (err) {
                 console.error(`Error enrolling ${email}:`, err);
@@ -290,6 +318,66 @@ router.post('/invite', auth, async (req, res) => {
         });
 
     } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Send email to course attendees
+router.post('/message', auth, async (req, res) => {
+    try {
+        const { courseId, subject, message, filter } = req.body;
+
+        // Build query based on filter
+        const query = { courseId };
+        if (filter && filter !== 'all') {
+            query.status = filter;
+        }
+
+        const enrollments = await Enrollment.find(query).lean();
+        const userIds = enrollments.map(e => e.userId);
+
+        const User = require('../models/User');
+        const users = await User.find({ _id: { $in: userIds } }).select('email name');
+
+        const recipients = users.map(u => u.email).filter(Boolean);
+
+        if (recipients.length > 0) {
+            const msg = {
+                to: recipients,
+                from: process.env.SENDER_EMAIL || 'noreply@learnsphere.com',
+                subject: subject,
+                text: message,
+                html: `<div style="font-family: Arial, sans-serif; line-height: 1.6;">
+                          <h2>${subject}</h2>
+                          <p>${message.replace(/\n/g, '<br>')}</p>
+                          <hr/>
+                          <p style="font-size: 12px; color: #888;">Sent from LearnSphere</p>
+                       </div>`,
+            };
+
+            try {
+                await sgMail.sendMultiple(msg);
+                res.json({
+                    success: true,
+                    data: {
+                        sentCount: recipients.length,
+                        simulated: false
+                    }
+                });
+            } catch (sgError) {
+                console.error('SendGrid Error:', sgError);
+                if (sgError.response) {
+                    console.error('SendGrid Response:', sgError.response.body);
+                }
+                // Fallback to simulation if key fails
+                res.status(500).json({ success: false, error: 'Failed to send email via SendGrid' });
+            }
+        } else {
+            res.json({ success: true, data: { sentCount: 0, simulated: false } });
+        }
+
+    } catch (error) {
+        console.error('Send email error:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });

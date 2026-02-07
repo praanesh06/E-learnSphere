@@ -23,15 +23,17 @@ mongoose.connect(process.env.MONGODB_URI)
 
 // Routes
 const authRoutes = require('./routes/auth');
+const uploadRoutes = require('./routes/uploads');
 const courseRoutes = require('./routes/courses');
 const lessonRoutes = require('./routes/lessons');
 const quizRoutes = require('./routes/quizzes');
 const enrollmentRoutes = require('./routes/enrollments');
 const reviewRoutes = require('./routes/reviews');
-const uploadRoutes = require('./routes/uploads');
 const paymentRoutes = require('./routes/payments');
 
+// Use Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/uploads', uploadRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/lessons', lessonRoutes);
 app.use('/api/quizzes', quizRoutes);
