@@ -455,7 +455,7 @@ export default function AdminCourses() {
           </p>
           <div className="flex items-center gap-2 p-3 bg-gray-100 rounded-lg">
             <code className="flex-1 text-sm truncate">
-              {`${window.location.origin}/courses/${courseToShare?.id}`}
+              {`${window.location.origin}/courses/${courseToShare ? getCourseId(courseToShare) : ''}`}
             </code>
           </div>
           <DialogFooter>

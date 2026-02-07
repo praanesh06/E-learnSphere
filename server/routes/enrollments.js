@@ -236,4 +236,62 @@ router.post('/lesson-complete', auth, async (req, res) => {
     }
 });
 
+// Invite users to course (Enroll by email)
+router.post('/invite', auth, async (req, res) => {
+    try {
+        const { courseId, emails } = req.body;
+
+        if (!courseId || !emails || !Array.isArray(emails)) {
+            return res.status(400).json({ success: false, error: 'Invalid request' });
+        }
+
+        const successEmails = [];
+        const failedEmails = [];
+        const User = require('../models/User');
+
+        for (const email of emails) {
+            try {
+                // Find user by email
+                const user = await User.findOne({ email });
+
+                if (!user) {
+                    failedEmails.push(`${email} (User not found)`);
+                    continue;
+                }
+
+                // Check if already enrolled
+                const existing = await Enrollment.findOne({ userId: user._id, courseId });
+                if (existing) {
+                    failedEmails.push(`${email} (Already enrolled)`);
+                    continue;
+                }
+
+                // Create enrollment
+                await Enrollment.create({
+                    userId: user._id,
+                    courseId,
+                    status: 'not_started',
+                    progress: 0,
+                    enrolledAt: new Date(),
+                    completedLessons: [],
+                    totalPoints: 0
+                });
+
+                successEmails.push(email);
+            } catch (err) {
+                console.error(`Error enrolling ${email}:`, err);
+                failedEmails.push(`${email} (Error)`);
+            }
+        }
+
+        res.json({
+            success: true,
+            data: { success: successEmails, failed: failedEmails }
+        });
+
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 module.exports = router;

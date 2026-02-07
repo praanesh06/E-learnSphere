@@ -160,6 +160,18 @@ export default function AdminCourseForm() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          {isEditing && (
+            <>
+              <Button variant="outline" onClick={() => setAddAttendeesOpen(true)}>
+                <UserPlus className="w-4 h-4 mr-2" />
+                Add Students
+              </Button>
+              <Button variant="outline" onClick={() => setContactAttendeesOpen(true)}>
+                <Mail className="w-4 h-4 mr-2" />
+                Email Students
+              </Button>
+            </>
+          )}
           <Button variant="outline" onClick={() => setPreviewOpen(true)}>
             <Eye className="w-4 h-4 mr-2" />
             Preview

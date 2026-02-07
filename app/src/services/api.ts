@@ -300,6 +300,14 @@ export const enrollmentsApi = {
         return res.json();
     },
 
+    invite: async (courseId: string, emails: string[]) => {
+        const res = await fetchWithAuth('/enrollments/invite', {
+            method: 'POST',
+            body: JSON.stringify({ courseId, emails }),
+        });
+        return res.json();
+    },
+
     markLessonComplete: async (courseId: string, lessonId: string, completedLessonIds: string[]) => {
         const res = await fetchWithAuth('/enrollments/lesson-complete', {
             method: 'POST',

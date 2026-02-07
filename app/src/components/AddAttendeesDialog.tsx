@@ -48,30 +48,28 @@ export function AddAttendeesDialog({
 
     const handleAddAttendees = async () => {
         setIsLoading(true);
-        const successEmails: string[] = [];
-        const failedEmails: string[] = [];
 
-        for (const email of emails) {
-            try {
-                // Try to enroll - in a real implementation, this would also
-                // create the user if they don't exist and send an invitation email
-                const result = await enrollmentsApi.enroll(courseId);
-                if (result.success) {
-                    successEmails.push(email);
-                } else {
-                    failedEmails.push(email);
+        try {
+            const result = await enrollmentsApi.invite(courseId, emails);
+
+            if (result.success && result.data) {
+                setResults({
+                    success: result.data.success,
+                    failed: result.data.failed
+                });
+
+                if (result.data.success.length > 0) {
+                    toast.success(`${result.data.success.length} attendee(s) added successfully!`);
                 }
-            } catch {
-                failedEmails.push(email);
+                setStep('success');
+            } else {
+                toast.error(result.error || 'Failed to add attendees');
             }
-        }
-
-        setResults({ success: successEmails, failed: failedEmails });
-        setStep('success');
-        setIsLoading(false);
-
-        if (successEmails.length > 0) {
-            toast.success(`${successEmails.length} attendee(s) added successfully!`);
+        } catch (error) {
+            console.error('Add attendees error:', error);
+            toast.error('Failed to add attendees');
+        } finally {
+            setIsLoading(false);
         }
     };
 
