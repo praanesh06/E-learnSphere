@@ -28,15 +28,24 @@ router.get('/course/:courseId', async (req, res) => {
 
         // Populate user info
         const reviewsWithUser = await Promise.all(reviews.map(async (review) => {
-            const user = await User.findById(review.userId);
+            let user = null;
+            try {
+                if (review.userId && review.userId.match(/^[0-9a-fA-F]{24}$/)) {
+                    user = await User.findById(review.userId);
+                }
+            } catch (err) {
+                console.error('Error fetching user for review:', err);
+            }
+
             return {
                 ...review.toObject(),
-                user: user ? { id: user._id, name: user.name, avatar: user.avatar } : null
+                user: user ? { id: user._id, name: user.name, avatar: user.avatar } : { name: 'Unknown User', avatar: '' }
             };
         }));
 
         res.json({ success: true, data: reviewsWithUser });
     } catch (error) {
+        console.error('Get reviews error:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });

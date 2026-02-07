@@ -38,6 +38,14 @@ const courseSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  averageRating: {
+    type: Number,
+    default: 0
+  },
+  totalReviews: {
+    type: Number,
+    default: 0
+  },
   // Track users who have paid for the course
   paidUsers: [{
     userId: String,

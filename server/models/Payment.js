@@ -26,7 +26,7 @@ const paymentSchema = new mongoose.Schema({
     },
     paymentMethod: {
         type: String,
-        enum: ['card', 'upi', 'netbanking', 'wallet', 'mock'],
+        enum: ['card', 'upi', 'netbanking', 'wallet', 'mock', 'razorpay', 'payment_link'],
         default: 'mock'
     },
     transactionId: {

@@ -5,11 +5,11 @@ const Payment = require('../models/Payment');
 const Course = require('../models/Course');
 const Enrollment = require('../models/Enrollment');
 
-// Initiate payment for a course
-router.post('/initiate', auth, async (req, res) => {
+// Create Order (Mock implementation for Payment Link)
+router.post('/create-order', auth, async (req, res) => {
     try {
         const { courseId } = req.body;
-        const userId = req.user.userId;
+        const userId = req.user.userId || req.user._id;
 
         // Get course details
         const course = await Course.findById(courseId);
@@ -38,8 +38,10 @@ router.post('/initiate', auth, async (req, res) => {
             userId,
             courseId,
             amount: course.price,
+            currency: 'INR',
             status: 'pending',
-            paymentMethod: 'mock'
+            paymentMethod: 'payment_link',
+            metadata: { type: 'manual_verification' }
         });
 
         await payment.save();
@@ -49,38 +51,36 @@ router.post('/initiate', auth, async (req, res) => {
             data: {
                 paymentId: payment._id,
                 amount: course.price,
-                courseTitle: course.title,
-                // In a real implementation, this would include payment gateway details
-                mockPaymentUrl: `/api/payments/complete/${payment._id}`
+                currency: 'INR',
+                orderId: `order_${payment._id}`, // Mock Order ID
+                keyId: 'mock_key',
+                courseTitle: course.title
             }
         });
+
     } catch (error) {
+        console.error('Create order error:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });
 
-// Complete payment (mock implementation)
-router.post('/complete/:paymentId', auth, async (req, res) => {
+// Verify Payment and Enroll (Mock implementation)
+router.post('/verify', auth, async (req, res) => {
     try {
-        const { paymentId } = req.params;
-        const userId = req.user.userId;
+        const { paymentId } = req.body;
+        const userId = req.user.userId || req.user._id;
 
         const payment = await Payment.findById(paymentId);
         if (!payment) {
-            return res.status(404).json({ success: false, error: 'Payment not found' });
+            return res.status(404).json({ success: false, error: 'Payment record not found' });
         }
 
-        if (payment.userId.toString() !== userId) {
-            return res.status(403).json({ success: false, error: 'Unauthorized' });
-        }
-
-        if (payment.status === 'completed') {
-            return res.status(400).json({ success: false, error: 'Payment already completed' });
-        }
+        // In a real app, we would verify with Razorpay API here.
+        // For this Demo Link integration, we trust the user's manual confirmation.
 
         // Update payment status
         payment.status = 'completed';
-        payment.transactionId = `TXN_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        payment.transactionId = `TXN_${Date.now()}`;
         await payment.save();
 
         // Add user to paidUsers in course
@@ -114,12 +114,13 @@ router.post('/complete/:paymentId', auth, async (req, res) => {
         res.json({
             success: true,
             data: {
-                payment,
                 enrollment,
-                message: 'Payment successful! You are now enrolled in the course.'
+                message: 'Payment verified and enrolled successfully!'
             }
         });
+
     } catch (error) {
+        console.error('Verify payment error:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });
@@ -127,7 +128,7 @@ router.post('/complete/:paymentId', auth, async (req, res) => {
 // Get user's payment history
 router.get('/history', auth, async (req, res) => {
     try {
-        const userId = req.user.userId;
+        const userId = req.user.userId || req.user._id;
 
         const payments = await Payment.find({ userId })
             .sort({ createdAt: -1 })

@@ -396,16 +396,18 @@ export const uploadsApi = {
 // Payments API
 export const paymentsApi = {
     initiate: async (courseId: string) => {
-        const res = await fetchWithAuth('/payments/initiate', {
+        // This is now createOrder
+        const res = await fetchWithAuth('/payments/create-order', {
             method: 'POST',
             body: JSON.stringify({ courseId }),
         });
         return res.json();
     },
 
-    complete: async (paymentId: string) => {
-        const res = await fetchWithAuth(`/payments/complete/${paymentId}`, {
+    verifyPayment: async (payload: any) => {
+        const res = await fetchWithAuth('/payments/verify', {
             method: 'POST',
+            body: JSON.stringify(payload),
         });
         return res.json();
     },

@@ -10,10 +10,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  Clock, Users, Star, PlayCircle, FileText, Image, CheckCircle,
+  Clock, Users, PlayCircle, FileText, Image, CheckCircle,
   Lock, ArrowLeft, BookOpen, MessageSquare, Send
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { PaymentModal } from '@/components/PaymentModal';
+import { StarRating } from '@/components/StarRating';
 import type { Course, Lesson, Review, Enrollment } from '@/types';
 
 export default function CourseDetailPage() {
@@ -25,6 +27,7 @@ export default function CourseDetailPage() {
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [newReview, setNewReview] = useState({ rating: 5, comment: '' });
   const [ratingSummary, setRatingSummary] = useState({ averageRating: 0, totalReviews: 0 });
   const isAuthenticated = authApi.isAuthenticated();
@@ -36,6 +39,8 @@ export default function CourseDetailPage() {
     }
   }, [id]);
 
+
+
   const loadCourseData = async () => {
     if (!id) return;
 
@@ -43,8 +48,7 @@ export default function CourseDetailPage() {
     if (courseResponse.success && courseResponse.data) {
       setCourse(courseResponse.data);
 
-      // Increment view count
-      coursesApi.incrementView(id).catch(() => { });
+
 
       // Fetch rating summary
       const ratingResponse = await coursesApi.getRating(id);
@@ -80,7 +84,13 @@ export default function CourseDetailPage() {
       return;
     }
 
-    if (!currentUser || !id) return;
+    if (!currentUser || !id || !course) return;
+
+    // Check if course implies payment
+    if (course.price && course.price > 0 && course.visibility === 'payment') {
+      setShowPaymentModal(true);
+      return;
+    }
 
     const result = await enrollmentsApi.enroll(id);
     if (result.success) {
@@ -89,6 +99,10 @@ export default function CourseDetailPage() {
     } else {
       toast.error(result.error || 'Failed to enroll');
     }
+  };
+
+  const handlePaymentSuccess = () => {
+    loadCourseData();
   };
 
   const handleSubmitReview = async () => {
@@ -151,7 +165,7 @@ export default function CourseDetailPage() {
     );
   }
 
-  const canAccess = course.visibility === 'everyone' || (course.visibility === 'signed_in' && isAuthenticated);
+  const canAccess = course.visibility === 'everyone' || ((course.visibility === 'signed_in' || course.visibility === 'payment') && isAuthenticated);
 
   return (
     <div className="min-h-screen bg-[#F6F8FC]">
@@ -179,13 +193,13 @@ export default function CourseDetailPage() {
               <p className="text-gray-300 text-lg mb-6">{course.description}</p>
               <div className="flex flex-wrap items-center gap-6 text-sm">
                 <div className="flex items-center gap-2">
-                  <Star className="w-5 h-5 text-yellow-400 fill-yellow-400" />
+                  <StarRating rating={Number(averageRating)} size="md" />
                   <span className="font-medium">{averageRating}</span>
                   <span className="text-gray-400">({reviews.length} reviews)</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Users className="w-5 h-5 text-gray-400" />
-                  <span>{course.views.toLocaleString()} views</span>
+                  <span>{((course as any).enrollmentCount || 0).toLocaleString()} enrolled</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock className="w-5 h-5 text-gray-400" />
@@ -307,12 +321,7 @@ export default function CourseDetailPage() {
                   <div className="text-center">
                     <p className="text-5xl font-bold text-[#0B0E14]">{averageRating}</p>
                     <div className="flex gap-1 my-2">
-                      {[...Array(5)].map((_, i) => (
-                        <Star
-                          key={i}
-                          className={`w-5 h-5 ${i < Math.round(Number(averageRating)) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`}
-                        />
-                      ))}
+                      <StarRating rating={Number(averageRating)} size="lg" />
                     </div>
                     <p className="text-sm text-gray-500">{reviews.length} reviews</p>
                   </div>
@@ -359,12 +368,7 @@ export default function CourseDetailPage() {
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-2">
                               <div className="flex gap-0.5">
-                                {[...Array(5)].map((_, i) => (
-                                  <Star
-                                    key={i}
-                                    className={`w-4 h-4 ${i < review.rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`}
-                                  />
-                                ))}
+                                <StarRating rating={review.rating} size="sm" />
                               </div>
                               <span className="text-sm text-gray-500">
                                 {new Date(review.createdAt).toLocaleDateString()}
@@ -393,17 +397,15 @@ export default function CourseDetailPage() {
             <div>
               <label className="text-sm font-medium mb-2 block">Rating</label>
               <div className="flex gap-2">
-                {[1, 2, 3, 4, 5].map(star => (
-                  <button
-                    key={star}
-                    onClick={() => setNewReview({ ...newReview, rating: star })}
-                    className="p-1"
-                  >
-                    <Star
-                      className={`w-8 h-8 ${star <= newReview.rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`}
-                    />
-                  </button>
-                ))}
+                <div className="flex gap-2">
+                  <StarRating
+                    rating={newReview.rating}
+                    maxRating={5}
+                    size="lg"
+                    interactive={true}
+                    onRatingChange={(rating) => setNewReview({ ...newReview, rating })}
+                  />
+                </div>
               </div>
             </div>
             <div>
@@ -426,6 +428,12 @@ export default function CourseDetailPage() {
           </div>
         </DialogContent>
       </Dialog>
+      <PaymentModal
+        course={course}
+        isOpen={showPaymentModal}
+        onClose={() => setShowPaymentModal(false)}
+        onSuccess={handlePaymentSuccess}
+      />
     </div>
   );
 }

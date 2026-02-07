@@ -49,11 +49,17 @@ export function StarRating({
 
     return (
         <div className={cn('flex items-center gap-1', className)}>
-            <div className="flex">
+            <div className="flex" onMouseLeave={interactive ? handleMouseLeave : undefined}>
                 {Array.from({ length: maxRating }, (_, i) => {
                     const value = i + 1;
                     const isFilled = value <= displayRating;
-                    const isHalfFilled = !isFilled && value - 0.5 <= displayRating;
+                    // Check for half star: value is greater than rating, but previous value (value-1) + 0.5 is <= rating
+                    // e.g. Rating 3.5. i=3 (value 4). 3 is filled. 4 is not. 
+                    // 3.5 >= 3.5 -> True. So star 4 should be half? 
+                    // Wait. Star 1 (0-1), Star 2 (1-2), Star 3 (2-3), Star 4 (3-4).
+                    // If rating is 3.5, Stars 1,2,3 are full. Star 4 is half.
+                    // Star 4 condition: !isFilled AND rating >= (value - 0.5)
+                    const isHalfFilled = !isFilled && displayRating >= (value - 0.5);
 
                     return (
                         <button
@@ -62,28 +68,41 @@ export function StarRating({
                             disabled={!interactive}
                             onClick={() => handleClick(value)}
                             onMouseEnter={() => handleMouseEnter(value)}
-                            onMouseLeave={handleMouseLeave}
                             className={cn(
-                                'focus:outline-none transition-colors',
-                                interactive && 'cursor-pointer hover:scale-110'
+                                'focus:outline-none transition-transform',
+                                interactive ? 'cursor-pointer hover:scale-110' : 'cursor-default'
                             )}
                         >
-                            <Star
-                                className={cn(
-                                    sizeClasses[size],
-                                    isFilled
-                                        ? 'fill-yellow-400 text-yellow-400'
-                                        : isHalfFilled
-                                            ? 'fill-yellow-400/50 text-yellow-400'
-                                            : 'fill-gray-200 text-gray-200'
-                                )}
-                            />
+                            {isFilled ? (
+                                <Star
+                                    className={cn(
+                                        sizeClasses[size],
+                                        'fill-yellow-400 text-yellow-400'
+                                    )}
+                                />
+                            ) : isHalfFilled ? (
+                                <div className="relative">
+                                    {/* Background empty star */}
+                                    <Star className={cn(sizeClasses[size], 'text-gray-200 fill-gray-200')} />
+                                    {/* Foreground half star */}
+                                    <div className="absolute top-0 left-0 overflow-hidden w-1/2">
+                                        <Star className={cn(sizeClasses[size], 'fill-yellow-400 text-yellow-400')} />
+                                    </div>
+                                </div>
+                            ) : (
+                                <Star
+                                    className={cn(
+                                        sizeClasses[size],
+                                        'fill-gray-200 text-gray-200'
+                                    )}
+                                />
+                            )}
                         </button>
                     );
                 })}
             </div>
             {showValue && (
-                <span className="text-sm text-gray-600 ml-1">
+                <span className="text-sm font-medium text-gray-700 ml-1">
                     {rating.toFixed(1)}
                 </span>
             )}

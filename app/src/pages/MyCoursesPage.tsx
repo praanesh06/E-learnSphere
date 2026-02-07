@@ -74,13 +74,19 @@ export default function MyCoursesPage() {
 
   const badgeLevel = points ? getBadgeLevel(points.totalPoints) : null;
 
+  const currentUser = authApi.getCurrentUser();
+  const isNewUser = currentUser?.createdAt
+    ? (new Date().getTime() - new Date(currentUser.createdAt).getTime()) < 5 * 60 * 1000
+    : false;
+
   return (
     <div className="min-h-screen bg-[#F6F8FC] py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Welcome Section */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-[#0B0E14] mb-2">
-            Welcome back, {authApi.getCurrentUser()?.name?.split(' ')[0] || 'Learner'}!
+            {isNewUser ? 'Welcome to LearnSphere, ' : 'Welcome back, '}
+            {currentUser?.name?.split(' ')[0] || 'Learner'}!
           </h1>
           <p className="text-gray-600">Continue your learning journey</p>
         </div>

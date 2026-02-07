@@ -9,8 +9,8 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from '@/components/ui/dialog';
 import {
-  Plus, Search, Grid, List, Edit, Trash2, Eye, Share2,
-  Clock, CheckCircle, XCircle
+  Plus, Search, Grid, List, Edit, Trash2, Share2,
+  Clock, CheckCircle, XCircle, Users
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Course } from '@/types';
@@ -187,8 +187,8 @@ export default function AdminCourses() {
                         <h4 className="font-medium text-[#0B0E14] truncate">{course.title}</h4>
                         <div className="flex items-center gap-3 text-sm text-gray-500 mt-1">
                           <span className="flex items-center gap-1">
-                            <Eye className="w-3 h-3" />
-                            {course.views}
+                            <Users className="w-3 h-3" />
+                            {(course as any).enrollmentCount || 0}
                           </span>
                           <span className="flex items-center gap-1">
                             <Clock className="w-3 h-3" />
@@ -282,8 +282,8 @@ export default function AdminCourses() {
                         </div>
                         <div className="flex items-center gap-3 text-sm text-gray-500 mt-1">
                           <span className="flex items-center gap-1">
-                            <Eye className="w-3 h-3" />
-                            {course.views}
+                            <Users className="w-3 h-3" />
+                            {(course as any).enrollmentCount || 0}
                           </span>
                           <span className="flex items-center gap-1">
                             <Clock className="w-3 h-3" />
@@ -376,8 +376,8 @@ export default function AdminCourses() {
                       </div>
                       <div className="flex items-center gap-4 text-sm text-gray-500">
                         <span className="flex items-center gap-1">
-                          <Eye className="w-3 h-3" />
-                          {course.views} views
+                          <Users className="w-3 h-3" />
+                          {(course as any).enrollmentCount || 0} students
                         </span>
                         <span className="flex items-center gap-1">
                           <Clock className="w-3 h-3" />

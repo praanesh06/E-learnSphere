@@ -5,8 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 import { Badge } from '@/components/ui/badge';
-import { 
-  BookOpen, Users, Eye, Star, Plus, TrendingUp, 
+import {
+  BookOpen, Users, Eye, Star, Plus, TrendingUp,
   BarChart3, ArrowRight, Clock
 } from 'lucide-react';
 import type { InstructorStats, Course } from '@/types';
@@ -17,12 +17,16 @@ export default function AdminDashboard() {
   const [recentCourses, setRecentCourses] = useState<Course[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  const currentUser = authService.getCurrentUser();
+  const isNewUser = currentUser?.createdAt
+    ? (new Date().getTime() - new Date(currentUser.createdAt).getTime()) < 5 * 60 * 1000
+    : false;
+
   useEffect(() => {
     loadDashboardData();
   }, []);
 
   const loadDashboardData = () => {
-    const currentUser = authService.getCurrentUser();
     if (!currentUser) {
       navigate('/login');
       return;
@@ -50,9 +54,12 @@ export default function AdminDashboard() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl font-bold text-[#0B0E14]">Dashboard</h1>
-          <p className="text-gray-500">Welcome back! Here's what's happening with your courses.</p>
+          <p className="text-gray-500">
+            {isNewUser ? 'Welcome to LearnSphere! ' : 'Welcome back! '}
+            Here's what's happening with your courses.
+          </p>
         </div>
-        <Button 
+        <Button
           onClick={() => navigate('/admin/courses/new')}
           className="bg-[#3B5BFF] hover:bg-[#2a4aee]"
         >
@@ -137,7 +144,7 @@ export default function AdminDashboard() {
               {recentCourses.length > 0 ? (
                 <div className="space-y-4">
                   {recentCourses.map(course => (
-                    <div 
+                    <div
                       key={course.id}
                       className="flex items-center gap-4 p-4 rounded-xl bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors"
                       onClick={() => navigate(`/admin/courses/${course.id}/edit`)}
@@ -172,8 +179,8 @@ export default function AdminDashboard() {
                 <div className="text-center py-8">
                   <BookOpen className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                   <p className="text-gray-500">No courses yet</p>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="mt-3"
                     onClick={() => navigate('/admin/courses/new')}
                   >
@@ -193,24 +200,24 @@ export default function AdminDashboard() {
               <CardTitle className="text-lg">Quick Actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 className="w-full justify-start"
                 onClick={() => navigate('/admin/courses/new')}
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Create New Course
               </Button>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 className="w-full justify-start"
                 onClick={() => navigate('/admin/courses')}
               >
                 <BookOpen className="w-4 h-4 mr-2" />
                 Manage Courses
               </Button>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 className="w-full justify-start"
                 onClick={() => navigate('/admin/reporting')}
               >
@@ -234,8 +241,8 @@ export default function AdminDashboard() {
               <p className="text-sm text-white/90 mb-4">
                 Courses with video content get 3x more engagement. Add videos to your lessons!
               </p>
-              <Button 
-                variant="secondary" 
+              <Button
+                variant="secondary"
                 size="sm"
                 onClick={() => navigate('/admin/courses')}
               >

@@ -19,7 +19,15 @@ router.get('/', async (req, res) => {
         if (instructorId) filter.instructorId = instructorId;
 
         const courses = await Course.find(filter).sort({ createdAt: -1 });
-        res.json({ success: true, data: courses });
+
+        // Populate enrollment count for each course
+        const coursesWithStats = await Promise.all(courses.map(async (course) => {
+            const enrollmentCount = await Enrollment.countDocuments({ courseId: course._id });
+            const courseData = course.toObject ? course.toObject() : course;
+            return { ...courseData, enrollmentCount };
+        }));
+
+        res.json({ success: true, data: coursesWithStats });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
@@ -38,7 +46,11 @@ router.get('/:id', async (req, res) => {
         if (!course) {
             return res.status(404).json({ success: false, error: 'Course not found' });
         }
-        res.json({ success: true, data: course });
+
+        const enrollmentCount = await Enrollment.countDocuments({ courseId: req.params.id });
+        const courseData = course.toObject ? course.toObject() : course;
+
+        res.json({ success: true, data: { ...courseData, enrollmentCount } });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
