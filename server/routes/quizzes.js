@@ -1,8 +1,11 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const Quiz = require('../models/Quiz');
 const QuizAttempt = require('../models/QuizAttempt');
 const UserPoints = require('../models/UserPoints');
 const { auth, authorize } = require('../middleware/auth');
+const Lesson = require('../models/Lesson');
+const Enrollment = require('../models/Enrollment');
 
 const router = express.Router();
 
@@ -241,6 +244,71 @@ router.post('/:id/attempt', auth, async (req, res) => {
                 },
                 { upsert: true }
             );
+        }
+
+        // Update progress if passed
+        if (passed) {
+            let lesson = null;
+
+            // 1. Try finding by lessonId reference in Quiz
+            if (quiz.lessonId) {
+                if (mongoose.Types.ObjectId.isValid(quiz.lessonId)) {
+                    lesson = await Lesson.findById(quiz.lessonId);
+                } else {
+                    // Fallback for non-ObjectId strings if necessary, though findById is preferred
+                    // This might happen if lessonId is stored as a plain string ID
+                    lesson = await Lesson.collection.findOne({ _id: quiz.lessonId });
+                }
+            }
+
+            // 2. Fallback: Find by quizId in Lesson
+            if (!lesson) {
+                lesson = await Lesson.findOne({
+                    $or: [
+                        { quizId: quiz._id.toString() },
+                        { quizId: quiz.id }
+                    ]
+                });
+            }
+
+            // Update enrollment progress
+            const enrollment = await Enrollment.findOne({ userId, courseId: quiz.courseId });
+            if (enrollment) {
+                // Initialize if undefined
+                if (!enrollment.completedLessons) {
+                    enrollment.completedLessons = [];
+                }
+
+                // Use lesson ID if found, otherwise use quiz ID as a marker
+                const completionId = lesson ? lesson._id.toString() : `quiz_${quiz._id.toString()}`;
+
+                if (!enrollment.completedLessons.includes(completionId)) {
+                    enrollment.completedLessons.push(completionId);
+
+                    // Recalculate progress
+                    let totalLessons = await Lesson.countDocuments({ courseId: quiz.courseId });
+                    if (totalLessons === 0) {
+                        totalLessons = await Lesson.countDocuments({ courseId: quiz.courseId.toString() });
+                    }
+                    if (totalLessons > 0) {
+                        enrollment.progress = Math.round((enrollment.completedLessons.length / totalLessons) * 100);
+                    }
+
+                    if (enrollment.progress >= 100) {
+                        enrollment.progress = 100;
+                        enrollment.status = 'completed';
+                        enrollment.completedAt = new Date();
+                    } else if (enrollment.status === 'not_started') {
+                        enrollment.status = 'in_progress';
+                        enrollment.startedAt = new Date();
+                    }
+
+                    await enrollment.save();
+                    console.log(`Quiz completed: Updated enrollment progress to ${enrollment.progress}%`);
+                }
+            } else {
+                console.log(`Quiz completed but no enrollment found for user ${userId} in course ${quiz.courseId}`);
+            }
         }
 
         res.json({ success: true, data: attempt });

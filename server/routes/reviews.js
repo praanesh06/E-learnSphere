@@ -1,9 +1,25 @@
 const express = require('express');
 const Review = require('../models/Review');
 const User = require('../models/User');
+const Course = require('../models/Course');
 const { auth } = require('../middleware/auth');
 
 const router = express.Router();
+
+// Helper function to update cached course rating
+async function updateCourseRating(courseId) {
+    try {
+        const reviews = await Review.find({ courseId });
+        const totalReviews = reviews.length;
+        const averageRating = totalReviews > 0
+            ? Math.round((reviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews) * 10) / 10
+            : 0;
+
+        await Course.findByIdAndUpdate(courseId, { averageRating, totalReviews });
+    } catch (error) {
+        console.error('Failed to update course rating:', error);
+    }
+}
 
 // Get reviews by course
 router.get('/course/:courseId', async (req, res) => {
@@ -45,6 +61,9 @@ router.post('/', auth, async (req, res) => {
         });
         await review.save();
 
+        // Update cached course rating
+        await updateCourseRating(courseId);
+
         res.status(201).json({ success: true, data: review });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -68,6 +87,9 @@ router.put('/:id', auth, async (req, res) => {
         review.comment = req.body.comment || review.comment;
         await review.save();
 
+        // Update cached course rating
+        await updateCourseRating(review.courseId);
+
         res.json({ success: true, data: review });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
@@ -87,7 +109,12 @@ router.delete('/:id', auth, async (req, res) => {
             return res.status(403).json({ success: false, error: 'Not authorized' });
         }
 
+        const courseId = review.courseId;
         await review.deleteOne();
+
+        // Update cached course rating
+        await updateCourseRating(courseId);
+
         res.json({ success: true, message: 'Review deleted' });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });

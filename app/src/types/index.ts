@@ -97,6 +97,7 @@ export interface Enrollment {
   enrolledAt: string;
   startedAt?: string;
   completedAt?: string;
+  completedLessons?: string[];
   totalPoints: number;
 }
 

@@ -26,6 +26,9 @@ const enrollmentSchema = new mongoose.Schema({
   },
   startedAt: Date,
   completedAt: Date,
+  completedLessons: [{
+    type: String
+  }],
   totalPoints: {
     type: Number,
     default: 0

@@ -30,14 +30,32 @@ const courseSchema = new mongoose.Schema({
     enum: ['everyone', 'signed_in', 'invitation', 'payment'],
     default: 'everyone'
   },
+  // Invited users for invitation-only courses
+  invitedUsers: [{
+    type: String // email addresses
+  }],
   price: {
     type: Number,
     default: 0
   },
+  // Track users who have paid for the course
+  paidUsers: [{
+    userId: String,
+    paidAt: { type: Date, default: Date.now },
+    amount: Number
+  }],
   status: {
     type: String,
     enum: ['draft', 'published'],
     default: 'draft'
+  },
+  averageRating: {
+    type: Number,
+    default: 0
+  },
+  totalReviews: {
+    type: Number,
+    default: 0
   },
   views: {
     type: Number,

@@ -1,19 +1,26 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { authService, courseService, enrollmentService } from '@/services/mockApi';
+import { authApi, coursesApi, enrollmentsApi } from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { 
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue 
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from '@/components/ui/select';
-import { 
-  ArrowLeft, Users, BookOpen, TrendingUp, CheckCircle, 
+import {
+  ArrowLeft, Users, BookOpen, TrendingUp, CheckCircle,
   Clock, Star, Download, Filter
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Course, Enrollment, CourseStats } from '@/types';
+
+interface UserInfo {
+  id: string;
+  _id?: string;
+  name: string;
+  email: string;
+}
 
 export default function AdminReporting() {
   const navigate = useNavigate();
@@ -21,7 +28,9 @@ export default function AdminReporting() {
   const [selectedCourse, setSelectedCourse] = useState<string>('all');
   const [stats, setStats] = useState<CourseStats | null>(null);
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
+  const [users, setUsers] = useState<UserInfo[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
   const [visibleColumns, setVisibleColumns] = useState({
     name: true,
     email: true,
@@ -37,44 +46,112 @@ export default function AdminReporting() {
 
   useEffect(() => {
     if (selectedCourse && selectedCourse !== 'all') {
-      const courseStats = courseService.getStats(selectedCourse);
-      setStats(courseStats);
-      setEnrollments(enrollmentService.getByCourse(selectedCourse));
+      loadCourseStats(selectedCourse);
+    } else if (selectedCourse === 'all' && courses.length > 0) {
+      // Load all enrollments for all courses
+      loadAllEnrollments();
     } else {
       setStats(null);
       setEnrollments([]);
     }
-  }, [selectedCourse]);
+  }, [selectedCourse, courses]);
 
-  const loadData = () => {
-    const currentUser = authService.getCurrentUser();
+  const loadAllEnrollments = async () => {
+    try {
+      const courseIds = courses.map(c => (c as any)._id || c.id);
+      const response = await enrollmentsApi.getByMultipleCourses(courseIds);
+      if (response.success && response.data) {
+        setEnrollments(response.data);
+      }
+    } catch (error) {
+      console.error('Failed to load all enrollments:', error);
+    }
+  };
+
+  const loadData = async () => {
+    const currentUser = authApi.getCurrentUser();
     if (!currentUser) {
       navigate('/login');
       return;
     }
 
-    const userCourses = courseService.getAll({ instructorId: currentUser.id });
-    setCourses(userCourses);
+    try {
+      const userId = currentUser._id || currentUser.id;
+      const response = await coursesApi.getAll({ instructorId: userId });
+      if (response.success && response.data) {
+        setCourses(response.data);
+      }
+
+      // Load users from localStorage for now (could be API in future)
+      const storedUsers = JSON.parse(localStorage.getItem('ls_users') || '[]');
+      setUsers(storedUsers);
+    } catch (error) {
+      console.error('Failed to load courses:', error);
+      toast.error('Failed to load courses');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadCourseStats = async (courseId: string) => {
+    try {
+      // Load stats
+      const statsResponse = await coursesApi.getStats(courseId);
+      if (statsResponse.success && statsResponse.data) {
+        setStats(statsResponse.data);
+      }
+
+      // Load enrollments
+      const enrollmentsResponse = await enrollmentsApi.getByCourse(courseId);
+      if (enrollmentsResponse.success && enrollmentsResponse.data) {
+        setEnrollments(enrollmentsResponse.data);
+      }
+    } catch (error) {
+      console.error('Failed to load course stats:', error);
+      toast.error('Failed to load course statistics');
+    }
   };
 
   const filteredEnrollments = enrollments.filter(e => {
-    const user = JSON.parse(localStorage.getItem('ls_users') || '[]')
-      .find((u: any) => u.id === e.userId);
-    if (!user) return false;
-    
+    // Use user data from enriched enrollment (from backend)
+    const user = (e as any).user;
+    if (!user) {
+      // Fallback to localStorage users
+      const localUser = users.find((u: UserInfo) => u.id === e.userId || u._id === e.userId);
+      if (!localUser) return !searchQuery; // Show if no search query, hide if searching
+      const query = searchQuery.toLowerCase();
+      return localUser.name.toLowerCase().includes(query) ||
+        localUser.email.toLowerCase().includes(query);
+    }
+
+    if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
-    return user.name.toLowerCase().includes(query) || 
-           user.email.toLowerCase().includes(query);
+    return user.name?.toLowerCase().includes(query) ||
+      user.email?.toLowerCase().includes(query);
   });
 
-  const getUser = (userId: string) => {
-    return JSON.parse(localStorage.getItem('ls_users') || '[]')
-      .find((u: any) => u.id === userId);
+  const getUser = (userId: string, enrollment?: any): UserInfo | undefined => {
+    // First try to get user from enriched enrollment data
+    if (enrollment?.user) {
+      return {
+        id: enrollment.user._id,
+        _id: enrollment.user._id,
+        name: enrollment.user.name || 'Unknown',
+        email: enrollment.user.email || 'Unknown'
+      };
+    }
+    // Fallback to localStorage users
+    return users.find((u: UserInfo) => u.id === userId || u._id === userId);
   };
 
   const exportData = () => {
+    if (filteredEnrollments.length === 0) {
+      toast.error('No data to export');
+      return;
+    }
+
     const data = filteredEnrollments.map(e => {
-      const user = getUser(e.userId);
+      const user = getUser(e.userId, e);
       return {
         Name: user?.name || 'Unknown',
         Email: user?.email || 'Unknown',
@@ -96,19 +173,52 @@ export default function AdminReporting() {
     a.download = `report-${selectedCourse}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
-    
+
     toast.success('Report exported!');
   };
 
-  const totalStats = courses.reduce((acc, course) => {
-    const courseStats = courseService.getStats(course.id);
-    return {
-      totalParticipants: acc.totalParticipants + courseStats.totalParticipants,
-      yetToStart: acc.yetToStart + courseStats.yetToStart,
-      inProgress: acc.inProgress + courseStats.inProgress,
-      completed: acc.completed + courseStats.completed
+  // Calculate total stats across all courses
+  const [totalStats, setTotalStats] = useState({
+    totalParticipants: 0,
+    yetToStart: 0,
+    inProgress: 0,
+    completed: 0
+  });
+
+  useEffect(() => {
+    const calculateTotalStats = async () => {
+      let totals = { totalParticipants: 0, yetToStart: 0, inProgress: 0, completed: 0 };
+
+      for (const course of courses) {
+        const courseId = (course as any)._id || course.id;
+        try {
+          const response = await coursesApi.getStats(courseId);
+          if (response.success && response.data) {
+            totals.totalParticipants += response.data.totalParticipants || 0;
+            totals.yetToStart += response.data.yetToStart || 0;
+            totals.inProgress += response.data.inProgress || 0;
+            totals.completed += response.data.completed || 0;
+          }
+        } catch (error) {
+          console.error(`Failed to get stats for course ${courseId}`);
+        }
+      }
+
+      setTotalStats(totals);
     };
-  }, { totalParticipants: 0, yetToStart: 0, inProgress: 0, completed: 0 });
+
+    if (courses.length > 0) {
+      calculateTotalStats();
+    }
+  }, [courses]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#3B5BFF]"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6">
@@ -197,14 +307,17 @@ export default function AdminReporting() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Courses</SelectItem>
-              {courses.map(course => (
-                <SelectItem key={course.id} value={course.id}>
-                  {course.title}
-                </SelectItem>
-              ))}
+              {courses.map(course => {
+                const courseId = (course as any)._id || course.id;
+                return (
+                  <SelectItem key={courseId} value={courseId}>
+                    {course.title}
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
-          
+
           {stats && (
             <div className="flex items-center gap-4 text-sm">
               <Badge variant="secondary">
@@ -230,8 +343,8 @@ export default function AdminReporting() {
             />
           </div>
           <div className="relative">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => setShowColumnMenu(!showColumnMenu)}
             >
               <Filter className="w-4 h-4 mr-2" />
@@ -258,92 +371,97 @@ export default function AdminReporting() {
       {/* Students Table */}
       <Card className="border-0 shadow-sm">
         <CardContent className="p-0">
-          {selectedCourse !== 'all' ? (
-            filteredEnrollments.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b">
-                    <tr>
-                      {visibleColumns.name && (
-                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Student</th>
-                      )}
-                      {visibleColumns.email && (
-                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Email</th>
-                      )}
-                      {visibleColumns.progress && (
-                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Progress</th>
-                      )}
-                      {visibleColumns.status && (
-                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Status</th>
-                      )}
-                      {visibleColumns.enrolled && (
-                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Enrolled</th>
-                      )}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {filteredEnrollments.map(enrollment => {
-                      const user = getUser(enrollment.userId);
-                      return (
-                        <tr key={enrollment.id} className="hover:bg-gray-50">
-                          {visibleColumns.name && (
-                            <td className="py-3 px-4">
-                              <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-full bg-[#3B5BFF] flex items-center justify-center text-white text-sm font-medium">
-                                  {user?.name.charAt(0).toUpperCase()}
-                                </div>
-                                <span className="font-medium text-[#0B0E14]">{user?.name}</span>
+          {filteredEnrollments.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    {visibleColumns.name && (
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Student</th>
+                    )}
+                    {visibleColumns.email && (
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Email</th>
+                    )}
+                    {selectedCourse === 'all' && (
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Course</th>
+                    )}
+                    {visibleColumns.progress && (
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Progress</th>
+                    )}
+                    {visibleColumns.status && (
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Status</th>
+                    )}
+                    {visibleColumns.enrolled && (
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Enrolled</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {filteredEnrollments.map(enrollment => {
+                    const user = getUser(enrollment.userId, enrollment);
+                    const enrollmentId = (enrollment as any)._id || enrollment.id;
+                    const courseName = (enrollment as any).course?.title || 'Unknown Course';
+                    return (
+                      <tr key={enrollmentId} className="hover:bg-gray-50">
+                        {visibleColumns.name && (
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-[#3B5BFF] flex items-center justify-center text-white text-sm font-medium">
+                                {user?.name?.charAt(0).toUpperCase() || '?'}
                               </div>
-                            </td>
-                          )}
-                          {visibleColumns.email && (
-                            <td className="py-3 px-4 text-gray-600">{user?.email}</td>
-                          )}
-                          {visibleColumns.progress && (
-                            <td className="py-3 px-4">
-                              <div className="flex items-center gap-2">
-                                <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
-                                  <div 
-                                    className="h-full bg-[#3B5BFF] rounded-full"
-                                    style={{ width: `${enrollment.progress}%` }}
-                                  />
-                                </div>
-                                <span className="text-sm text-gray-600">{enrollment.progress}%</span>
+                              <span className="font-medium text-[#0B0E14]">{user?.name || 'Unknown'}</span>
+                            </div>
+                          </td>
+                        )}
+                        {visibleColumns.email && (
+                          <td className="py-3 px-4 text-gray-600">{user?.email || 'Unknown'}</td>
+                        )}
+                        {selectedCourse === 'all' && (
+                          <td className="py-3 px-4 text-gray-600">{courseName}</td>
+                        )}
+                        {visibleColumns.progress && (
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-2">
+                              <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-[#3B5BFF] rounded-full"
+                                  style={{ width: `${enrollment.progress}%` }}
+                                />
                               </div>
-                            </td>
-                          )}
-                          {visibleColumns.status && (
-                            <td className="py-3 px-4">
-                              <Badge className={`
-                                ${enrollment.status === 'completed' ? 'bg-green-100 text-green-700' : ''}
-                                ${enrollment.status === 'in_progress' ? 'bg-blue-100 text-blue-700' : ''}
-                                ${enrollment.status === 'not_started' ? 'bg-gray-100 text-gray-700' : ''}
-                              `}>
-                                {enrollment.status.replace('_', ' ')}
-                              </Badge>
-                            </td>
-                          )}
-                          {visibleColumns.enrolled && (
-                            <td className="py-3 px-4 text-gray-600">
-                              {new Date(enrollment.enrolledAt).toLocaleDateString()}
-                            </td>
-                          )}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500">No students enrolled yet</p>
-              </div>
-            )
+                              <span className="text-sm text-gray-600">{enrollment.progress}%</span>
+                            </div>
+                          </td>
+                        )}
+                        {visibleColumns.status && (
+                          <td className="py-3 px-4">
+                            <Badge className={`
+                              ${enrollment.status === 'completed' ? 'bg-green-100 text-green-700' : ''}
+                              ${enrollment.status === 'in_progress' ? 'bg-blue-100 text-blue-700' : ''}
+                              ${enrollment.status === 'not_started' ? 'bg-gray-100 text-gray-700' : ''}
+                            `}>
+                              {enrollment.status.replace('_', ' ')}
+                            </Badge>
+                          </td>
+                        )}
+                        {visibleColumns.enrolled && (
+                          <td className="py-3 px-4 text-gray-600">
+                            {new Date(enrollment.enrolledAt).toLocaleDateString()}
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <div className="text-center py-12">
-              <BookOpen className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-500">Select a course to view detailed reports</p>
+              <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500">
+                {selectedCourse === 'all'
+                  ? 'No students enrolled in any course yet'
+                  : 'No students enrolled in this course yet'}
+              </p>
             </div>
           )}
         </CardContent>

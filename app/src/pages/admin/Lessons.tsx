@@ -194,58 +194,61 @@ export default function AdminLessons() {
       <div className="bg-white rounded-xl shadow-sm">
         {lessons.length > 0 ? (
           <div className="divide-y">
-            {lessons.map((lesson, index) => (
-              <div
-                key={lesson.id}
-                className="flex items-center gap-4 p-4 hover:bg-gray-50 transition-colors"
-              >
-                <div className="text-gray-400 cursor-move">
-                  <GripVertical className="w-5 h-5" />
-                </div>
-                <div className="w-8 h-8 rounded-full bg-[#3B5BFF]/10 flex items-center justify-center text-[#3B5BFF] font-medium text-sm">
-                  {index + 1}
-                </div>
-                <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600">
-                  {getLessonIcon(lesson.type)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-medium text-[#0B0E14]">{lesson.title}</h4>
-                  <div className="flex items-center gap-3 text-sm text-gray-500">
-                    <Badge variant="secondary" className="text-xs capitalize">
-                      {lesson.type}
-                    </Badge>
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {formatDuration(lesson.duration)}
-                    </span>
-                    {lesson.allowDownload && (
-                      <Badge variant="outline" className="text-xs">
-                        Downloadable
+            {lessons.map((lesson, index) => {
+              const lessonId = (lesson as any)._id || lesson.id;
+              return (
+                <div
+                  key={lessonId}
+                  className="flex items-center gap-4 p-4 hover:bg-gray-50 transition-colors"
+                >
+                  <div className="text-gray-400 cursor-move">
+                    <GripVertical className="w-5 h-5" />
+                  </div>
+                  <div className="w-8 h-8 rounded-full bg-[#3B5BFF]/10 flex items-center justify-center text-[#3B5BFF] font-medium text-sm">
+                    {index + 1}
+                  </div>
+                  <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600">
+                    {getLessonIcon(lesson.type)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-medium text-[#0B0E14]">{lesson.title}</h4>
+                    <div className="flex items-center gap-3 text-sm text-gray-500">
+                      <Badge variant="secondary" className="text-xs capitalize">
+                        {lesson.type}
                       </Badge>
-                    )}
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {formatDuration(lesson.duration)}
+                      </span>
+                      {lesson.allowDownload && (
+                        <Badge variant="outline" className="text-xs">
+                          Downloadable
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => openEditDialog(lesson)}
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setLessonToDelete(lesson);
+                        setDeleteDialogOpen(true);
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4 text-red-500" />
+                    </Button>
                   </div>
                 </div>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => openEditDialog(lesson)}
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setLessonToDelete(lesson);
-                      setDeleteDialogOpen(true);
-                    }}
-                  >
-                    <Trash2 className="w-4 h-4 text-red-500" />
-                  </Button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="text-center py-16">

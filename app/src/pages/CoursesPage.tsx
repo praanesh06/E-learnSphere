@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { coursesApi, authApi } from '@/services/api';
+import { coursesApi, authApi, uploadsApi } from '@/services/api';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -31,6 +31,8 @@ export default function CoursesPage() {
       const visibleCourses = response.data.filter((course: Course) => {
         if (course.visibility === 'everyone') return true;
         if (course.visibility === 'signed_in' && isAuthenticated) return true;
+        if (course.visibility === 'payment') return true; // Show paid courses - users can purchase them
+        // 'invitation' courses are hidden - only visible to invited users
         return false;
       });
       setCourses(visibleCourses);
@@ -139,7 +141,7 @@ export default function CoursesPage() {
                 >
                   <div className="relative aspect-video overflow-hidden">
                     <img
-                      src={course.image || 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=600'}
+                      src={course.image ? (course.image.startsWith('/uploads') ? uploadsApi.getFullUrl(course.image) : course.image) : 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=600'}
                       alt={course.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
@@ -178,7 +180,7 @@ export default function CoursesPage() {
                       </div>
                       <div className="flex items-center gap-1">
                         <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-                        <span>4.5</span>
+                        <span>{(course as any).averageRating || 0}</span>
                       </div>
                     </div>
                   </CardContent>

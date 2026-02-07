@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { coursesApi } from '@/services/api';
+import { coursesApi, uploadsApi } from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,10 +13,12 @@ import {
 } from '@/components/ui/dialog';
 import {
   ArrowLeft, Save, Eye, Plus, X, Upload, Globe, User,
-  Lock, Users, DollarSign
+  Lock, Users, DollarSign, Share2, UserPlus, Mail
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Course, CourseVisibility } from '@/types';
+import { AddAttendeesDialog } from '@/components/AddAttendeesDialog';
+import { ContactAttendeesDialog } from '@/components/ContactAttendeesDialog';
 
 export default function AdminCourseForm() {
   const { id } = useParams<{ id: string }>();
@@ -37,6 +39,8 @@ export default function AdminCourseForm() {
   const [newTag, setNewTag] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [addAttendeesOpen, setAddAttendeesOpen] = useState(false);
+  const [contactAttendeesOpen, setContactAttendeesOpen] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -96,18 +100,46 @@ export default function AdminCourseForm() {
     setCourse({ ...course, tags: course.tags?.filter(tag => tag !== tagToRemove) || [] });
   };
 
-  const handleImageUpload = () => {
-    // Simulate image upload with a random Unsplash image
-    const images = [
-      'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=800',
-      'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800',
-      'https://images.unsplash.com/photo-1504639725590-34d0984388bd?w=800',
-      'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=800',
-      'https://images.unsplash.com/photo-1551434678-e076c223a692?w=800'
-    ];
-    const randomImage = images[Math.floor(Math.random() * images.length)];
-    setCourse({ ...course, image: randomImage });
-    toast.success('Image uploaded!');
+  // File input ref for image upload
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file');
+      return;
+    }
+
+    // Validate file size (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image must be less than 5MB');
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const result = await uploadsApi.uploadSingle(file, 'images');
+      if (result.success && result.data) {
+        const imageUrl = uploadsApi.getFullUrl(result.data.url);
+        setCourse({ ...course, image: imageUrl });
+        toast.success('Image uploaded successfully!');
+      } else {
+        toast.error(result.error || 'Failed to upload image');
+      }
+    } catch (error) {
+      toast.error('Failed to upload image');
+      console.error('Upload error:', error);
+    } finally {
+      setIsUploading(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
   };
 
   return (
@@ -230,7 +262,7 @@ export default function AdminCourseForm() {
             <div className="space-y-6">
               <div className="bg-white rounded-xl p-6 shadow-sm">
                 <Label className="mb-4 block">Course Image</Label>
-                <div className="aspect-video rounded-lg overflow-hidden bg-gray-100 mb-4">
+                <div className="aspect-video rounded-lg overflow-hidden bg-gray-100 mb-4 relative">
                   {course.image ? (
                     <img src={course.image} alt="Course" className="w-full h-full object-cover" />
                   ) : (
@@ -238,10 +270,27 @@ export default function AdminCourseForm() {
                       <Upload className="w-8 h-8" />
                     </div>
                   )}
+                  {isUploading && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                      <div className="text-white text-sm">Uploading...</div>
+                    </div>
+                  )}
                 </div>
-                <Button variant="outline" className="w-full" onClick={handleImageUpload}>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleImageUpload}
+                  accept="image/*"
+                  className="hidden"
+                />
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                >
                   <Upload className="w-4 h-4 mr-2" />
-                  Upload Image
+                  {isUploading ? 'Uploading...' : course.image ? 'Change Image' : 'Upload Image'}
                 </Button>
               </div>
 
@@ -262,6 +311,34 @@ export default function AdminCourseForm() {
                       onClick={() => navigate(`/admin/courses/${id}/quiz`)}
                     >
                       Manage Quiz
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start"
+                      onClick={() => {
+                        const shareUrl = `${window.location.origin}/courses/${id}`;
+                        navigator.clipboard.writeText(shareUrl);
+                        toast.success('Share link copied to clipboard!');
+                      }}
+                    >
+                      <Share2 className="w-4 h-4 mr-2" />
+                      Share Link
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start"
+                      onClick={() => setAddAttendeesOpen(true)}
+                    >
+                      <UserPlus className="w-4 h-4 mr-2" />
+                      Add Attendees
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start"
+                      onClick={() => setContactAttendeesOpen(true)}
+                    >
+                      <Mail className="w-4 h-4 mr-2" />
+                      Contact Attendees
                     </Button>
                   </div>
                 </div>
@@ -382,6 +459,24 @@ export default function AdminCourseForm() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Attendee Dialogs */}
+      {id && (
+        <>
+          <AddAttendeesDialog
+            open={addAttendeesOpen}
+            onOpenChange={setAddAttendeesOpen}
+            courseId={id}
+            courseTitle={course.title || 'Course'}
+          />
+          <ContactAttendeesDialog
+            open={contactAttendeesOpen}
+            onOpenChange={setContactAttendeesOpen}
+            courseId={id}
+            courseTitle={course.title || 'Course'}
+          />
+        </>
+      )}
     </div>
   );
 }

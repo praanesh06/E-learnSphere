@@ -2,6 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const path = require('path');
 
 dotenv.config();
 
@@ -11,6 +12,9 @@ const PORT = process.env.PORT || 5000;
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Serve static files from uploads directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Database Connection
 mongoose.connect(process.env.MONGODB_URI)
@@ -24,6 +28,8 @@ const lessonRoutes = require('./routes/lessons');
 const quizRoutes = require('./routes/quizzes');
 const enrollmentRoutes = require('./routes/enrollments');
 const reviewRoutes = require('./routes/reviews');
+const uploadRoutes = require('./routes/uploads');
+const paymentRoutes = require('./routes/payments');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/courses', courseRoutes);
@@ -32,6 +38,8 @@ app.use('/api/quizzes', quizRoutes);
 app.use('/api/enrollments', enrollmentRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/activities', require('./routes/activities'));
+app.use('/api/uploads', uploadRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // Root route
 app.get('/', (req, res) => {

@@ -132,6 +132,18 @@ export const coursesApi = {
         const res = await fetchWithAuth(`/courses/${courseId}/stats`);
         return res.json();
     },
+
+    incrementView: async (courseId: string) => {
+        const res = await fetchWithAuth(`/courses/${courseId}/view`, {
+            method: 'POST',
+        });
+        return res.json();
+    },
+
+    getRating: async (courseId: string) => {
+        const res = await fetchWithAuth(`/courses/${courseId}/rating`);
+        return res.json();
+    },
 };
 
 // Lessons API
@@ -279,6 +291,22 @@ export const enrollmentsApi = {
         });
         return res.json();
     },
+
+    getByMultipleCourses: async (courseIds: string[]) => {
+        const res = await fetchWithAuth('/enrollments/courses', {
+            method: 'POST',
+            body: JSON.stringify({ courseIds }),
+        });
+        return res.json();
+    },
+
+    markLessonComplete: async (courseId: string, lessonId: string, completedLessonIds: string[]) => {
+        const res = await fetchWithAuth('/enrollments/lesson-complete', {
+            method: 'POST',
+            body: JSON.stringify({ courseId, lessonId, completedLessonIds }),
+        });
+        return res.json();
+    },
 };
 
 // Reviews API
@@ -316,6 +344,79 @@ export const reviewsApi = {
 export const activitiesApi = {
     getMyActivities: async () => {
         const res = await fetchWithAuth('/activities/my');
+        return res.json();
+    },
+};
+
+// Uploads API
+export const uploadsApi = {
+    uploadSingle: async (file: File, type: 'images' | 'documents' | 'videos' | 'general' = 'general') => {
+        const token = getToken();
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const res = await fetch(`${API_BASE_URL}/uploads/single?type=${type}`, {
+            method: 'POST',
+            headers: {
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            },
+            body: formData,
+        });
+        return res.json();
+    },
+
+    uploadMultiple: async (files: File[], type: 'images' | 'documents' | 'videos' | 'general' = 'general') => {
+        const token = getToken();
+        const formData = new FormData();
+        files.forEach(file => formData.append('files', file));
+
+        const res = await fetch(`${API_BASE_URL}/uploads/multiple?type=${type}`, {
+            method: 'POST',
+            headers: {
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            },
+            body: formData,
+        });
+        return res.json();
+    },
+
+    delete: async (type: string, filename: string) => {
+        const res = await fetchWithAuth(`/uploads/${type}/${filename}`, {
+            method: 'DELETE',
+        });
+        return res.json();
+    },
+
+    getFullUrl: (relativePath: string) => {
+        if (relativePath.startsWith('http')) return relativePath;
+        return `http://localhost:5000${relativePath}`;
+    },
+};
+
+// Payments API
+export const paymentsApi = {
+    initiate: async (courseId: string) => {
+        const res = await fetchWithAuth('/payments/initiate', {
+            method: 'POST',
+            body: JSON.stringify({ courseId }),
+        });
+        return res.json();
+    },
+
+    complete: async (paymentId: string) => {
+        const res = await fetchWithAuth(`/payments/complete/${paymentId}`, {
+            method: 'POST',
+        });
+        return res.json();
+    },
+
+    check: async (courseId: string) => {
+        const res = await fetchWithAuth(`/payments/check/${courseId}`);
+        return res.json();
+    },
+
+    getHistory: async () => {
+        const res = await fetchWithAuth('/payments/history');
         return res.json();
     },
 };

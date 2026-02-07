@@ -26,6 +26,7 @@ export default function CourseDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [newReview, setNewReview] = useState({ rating: 5, comment: '' });
+  const [ratingSummary, setRatingSummary] = useState({ averageRating: 0, totalReviews: 0 });
   const isAuthenticated = authApi.isAuthenticated();
   const currentUser = authApi.getCurrentUser();
 
@@ -41,6 +42,15 @@ export default function CourseDetailPage() {
     const courseResponse = await coursesApi.getById(id);
     if (courseResponse.success && courseResponse.data) {
       setCourse(courseResponse.data);
+
+      // Increment view count
+      coursesApi.incrementView(id).catch(() => { });
+
+      // Fetch rating summary
+      const ratingResponse = await coursesApi.getRating(id);
+      if (ratingResponse.success && ratingResponse.data) {
+        setRatingSummary(ratingResponse.data);
+      }
 
       const lessonsResponse = await lessonsApi.getByCourse(id);
       if (lessonsResponse.success && lessonsResponse.data) {

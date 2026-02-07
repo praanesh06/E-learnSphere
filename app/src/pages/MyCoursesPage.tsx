@@ -158,10 +158,18 @@ export default function MyCoursesPage() {
               <div className="space-y-4">
                 {courses.map(course => {
                   const courseId = (course as any)._id || course.id;
+                  const status = course.enrollment?.status;
+
+                  // Status-based border colors
+                  const borderColorClass =
+                    status === 'completed' ? 'border-l-4 border-l-green-500' :
+                      status === 'in_progress' ? 'border-l-4 border-l-blue-500' :
+                        'border-l-4 border-l-gray-300';
+
                   return (
                     <Card
                       key={courseId}
-                      className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                      className={`border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer ${borderColorClass}`}
                       onClick={() => navigate(`/learn/${courseId}`)}
                     >
                       <CardContent className="p-4">

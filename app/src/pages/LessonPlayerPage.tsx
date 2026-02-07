@@ -61,26 +61,53 @@ export default function LessonPlayerPage() {
       }
 
       // Get enrollment
+
+      let enrollmentData: Enrollment | null = null;
       const user = authApi.getCurrentUser();
+
       if (user) {
         const enrollmentsResponse = await enrollmentsApi.getByUser();
         if (enrollmentsResponse.success && enrollmentsResponse.data) {
-          const courseEnrollment = enrollmentsResponse.data.find((e: any) => e.courseId === courseId);
-          if (courseEnrollment) {
-            setEnrollment(courseEnrollment);
+          enrollmentData = enrollmentsResponse.data.find((e: any) => e.courseId === courseId);
+          if (enrollmentData) {
+            setEnrollment(enrollmentData);
           }
         }
       }
 
       // Get completed lessons from localStorage (progress tracking)
       const progress = JSON.parse(localStorage.getItem('ls_progress') || '[]');
-      const currentUser = authApi.getCurrentUser();
-      const completed = new Set<string>(
-        progress
-          .filter((p: any) => (p.userId === currentUser?.id || p.userId === currentUser?._id) && p.courseId === courseId && p.completed)
-          .map((p: any) => p.lessonId)
-      );
+      const localCompletedIds = progress
+        .filter((p: any) => (p.userId === user?.id || p.userId === user?._id) && p.courseId === courseId && p.completed)
+        .map((p: any) => p.lessonId);
+
+      const completed = new Set<string>(localCompletedIds);
+
+      // Merge backend progress
+      if (enrollmentData && enrollmentData.completedLessons) {
+        enrollmentData.completedLessons.forEach((id: string) => completed.add(id));
+      }
+
       setCompletedLessons(completed);
+
+      // FORCE SYNC: If local storage has more items than backend, or just mismatch, sync the FULL list to backend
+      if (user && enrollmentData && completed.size > (enrollmentData.completedLessons?.length || 0)) {
+        console.log('Syncing local progress to backend...', Array.from(completed));
+        try {
+          // We can use the existing completion endpoint which accepts the full list
+          // We pick the first lesson ID just to satisfy the API requirement, or just pass one
+          const dummyLessonId = Array.from(completed)[0];
+          if (dummyLessonId) {
+            await enrollmentsApi.markLessonComplete(
+              courseId,
+              dummyLessonId,
+              Array.from(completed)
+            );
+          }
+        } catch (err) {
+          console.error('Background sync failed:', err);
+        }
+      }
     }
   };
 
@@ -89,7 +116,7 @@ export default function LessonPlayerPage() {
     setSearchParams({ lesson: (lesson as any)._id || lesson.id });
   };
 
-  const handleMarkComplete = () => {
+  const handleMarkComplete = async () => {
     if (!currentLesson || !courseId) return;
 
     const user = authApi.getCurrentUser();
@@ -115,9 +142,37 @@ export default function LessonPlayerPage() {
     }
     localStorage.setItem('ls_progress', JSON.stringify(progress));
 
-    toast.success('Lesson completed!');
-    setCompletedLessons(prev => new Set([...prev, lessonId]));
-    loadCourseData();
+    // Derive correct list from localStorage to ensure we don't lose data if state is stale
+    const localCompletedIds = progress
+      .filter((p: any) => (p.userId === userId || p.userId === user._id) && p.courseId === courseId && p.completed)
+      .map((p: any) => p.lessonId);
+
+    // Merge with any known backend-only completions (quizzes) if available in current state
+    const mergedCompletedIds = new Set([...localCompletedIds, ...Array.from(completedLessons)]);
+    mergedCompletedIds.add(lessonId);
+
+    // Update completed lessons set state
+    setCompletedLessons(mergedCompletedIds);
+
+    // Sync with backend to update enrollment progress
+    try {
+      const result = await enrollmentsApi.markLessonComplete(
+        courseId,
+        lessonId,
+        Array.from(mergedCompletedIds)
+      );
+      if (result.success && result.data) {
+        // Update the enrollment state with the new progress
+        setEnrollment(result.data);
+        toast.success('Lesson completed!');
+      } else {
+        toast.success('Lesson completed!');
+        console.warn('Failed to sync progress with server:', result.error);
+      }
+    } catch (error) {
+      toast.success('Lesson completed!');
+      console.error('Failed to sync progress:', error);
+    }
 
     // Auto-advance to next lesson
     const currentIndex = lessons.findIndex(l => ((l as any)._id || l.id) === lessonId);
@@ -193,10 +248,10 @@ export default function LessonPlayerPage() {
           <h2 className="font-semibold text-white truncate">{course.title}</h2>
           <div className="mt-2">
             <div className="flex items-center justify-between text-sm text-gray-400 mb-1">
-              <span>{enrollment?.progress || 0}% complete</span>
+              <span>{Math.round((completedLessons.size / Math.max(lessons.length, 1)) * 100)}% complete</span>
               <span>{completedLessons.size}/{lessons.length} lessons</span>
             </div>
-            <Progress value={enrollment?.progress || 0} className="h-1.5" />
+            <Progress value={Math.round((completedLessons.size / Math.max(lessons.length, 1)) * 100)} className="h-1.5" />
           </div>
         </div>
 
