@@ -24,34 +24,34 @@ export default function RegisterPage() {
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
-    
+
     if (!formData.name.trim()) {
       newErrors.name = 'Name is required';
     }
-    
+
     if (!formData.email.trim()) {
       newErrors.email = 'Email is required';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = 'Invalid email format';
     }
-    
+
     if (!formData.password) {
       newErrors.password = 'Password is required';
     } else if (formData.password.length < 6) {
       newErrors.password = 'Password must be at least 6 characters';
     }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validate()) return;
-    
+
     setIsLoading(true);
-    
+
     try {
       const result = await register({
         name: formData.name,
@@ -59,7 +59,7 @@ export default function RegisterPage() {
         password: formData.password,
         role: formData.role
       });
-      
+
       if (result.success) {
         toast.success('Account created successfully!');
         navigate('/my-courses');
@@ -164,30 +164,28 @@ export default function RegisterPage() {
                   <button
                     type="button"
                     onClick={() => setFormData({ ...formData, role: 'learner' })}
-                    className={`p-3 rounded-lg border text-sm font-medium transition-colors ${
-                      formData.role === 'learner'
+                    className={`p-3 rounded-lg border text-sm font-medium transition-colors ${formData.role === 'learner'
                         ? 'border-[#3B5BFF] bg-[#3B5BFF]/10 text-[#3B5BFF]'
                         : 'border-gray-200 hover:border-gray-300'
-                    }`}
+                      }`}
                   >
                     Learn
                   </button>
                   <button
                     type="button"
                     onClick={() => setFormData({ ...formData, role: 'instructor' })}
-                    className={`p-3 rounded-lg border text-sm font-medium transition-colors ${
-                      formData.role === 'instructor'
+                    className={`p-3 rounded-lg border text-sm font-medium transition-colors ${formData.role === 'instructor'
                         ? 'border-[#3B5BFF] bg-[#3B5BFF]/10 text-[#3B5BFF]'
                         : 'border-gray-200 hover:border-gray-300'
-                    }`}
+                      }`}
                   >
                     Teach
                   </button>
                 </div>
               </div>
 
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 className="w-full bg-[#3B5BFF] hover:bg-[#2a4aee]"
                 disabled={isLoading}
               >
