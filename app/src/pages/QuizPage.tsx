@@ -53,7 +53,7 @@ export default function QuizPage() {
   };
 
   const handleAnswerSelect = (questionId: string, optionId: string) => {
-    const question = questions.find(q => q.id === questionId);
+    const question = questions.find(q => (q as any)._id === questionId || q.id === questionId);
     if (!question) return;
 
     setAnswers(prev => {
@@ -104,6 +104,10 @@ export default function QuizPage() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Helper functions for MongoDB _id compatibility
+  const getQuestionId = (question: Question) => (question as any)._id || question.id;
+  const getOptionId = (option: any) => option._id || option.id;
+
   if (!quiz || questions.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -113,6 +117,7 @@ export default function QuizPage() {
   }
 
   const currentQuestion = questions[currentQuestionIndex];
+  const currentQuestionId = getQuestionId(currentQuestion);
   const answeredCount = Object.keys(answers).length;
   const progress = ((currentQuestionIndex + 1) / questions.length) * 100;
 
@@ -188,15 +193,17 @@ export default function QuizPage() {
           <div className="mt-8 space-y-4">
             <h3 className="text-lg font-semibold text-[#0B0E14]">Question Review</h3>
             {questions.map((question, index) => {
-              const userAnswers = answers[question.id] || [];
-              const correctAnswers = question.options.filter(o => o.isCorrect).map(o => o.id);
+              const questionId = getQuestionId(question);
+              const userAnswers = answers[questionId] || [];
+              const correctAnswers = question.options.filter(o => o.isCorrect).map(o => getOptionId(o));
               const isCorrect = question.type === 'single'
                 ? userAnswers.length === 1 && correctAnswers.includes(userAnswers[0])
                 : correctAnswers.every(ca => userAnswers.includes(ca)) &&
                 userAnswers.every(ua => correctAnswers.includes(ua));
+              userAnswers.every(ua => correctAnswers.includes(ua));
 
               return (
-                <Card key={question.id} className="border-0 shadow-sm">
+                <Card key={getQuestionId(question)} className="border-0 shadow-sm">
                   <CardContent className="p-5">
                     <div className="flex items-start gap-3">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isCorrect ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
@@ -209,12 +216,13 @@ export default function QuizPage() {
                         </p>
                         <div className="space-y-2">
                           {question.options.map(option => {
-                            const isSelected = userAnswers.includes(option.id);
+                            const optionId = getOptionId(option);
+                            const isSelected = userAnswers.includes(optionId);
                             const isCorrectOption = option.isCorrect;
 
                             return (
                               <div
-                                key={option.id}
+                                key={optionId}
                                 className={`p-3 rounded-lg text-sm ${isCorrectOption
                                   ? 'bg-green-50 border border-green-200 text-green-800'
                                   : isSelected
@@ -294,12 +302,13 @@ export default function QuizPage() {
 
             <div className="space-y-3">
               {currentQuestion.options.map(option => {
-                const isSelected = (answers[currentQuestion.id] || []).includes(option.id);
+                const optionId = getOptionId(option);
+                const isSelected = (answers[currentQuestionId] || []).includes(optionId);
 
                 return (
                   <button
-                    key={option.id}
-                    onClick={() => handleAnswerSelect(currentQuestion.id, option.id)}
+                    key={optionId}
+                    onClick={() => handleAnswerSelect(currentQuestionId, optionId)}
                     className={`w-full p-4 rounded-xl border-2 text-left transition-all ${isSelected
                       ? 'border-[#3B5BFF] bg-[#3B5BFF]/5'
                       : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'

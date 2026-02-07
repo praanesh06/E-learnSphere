@@ -34,6 +34,10 @@ const lessonSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  quizId: {
+    type: String, // References Quiz._id when type is 'quiz'
+    default: null
+  },
   allowDownload: {
     type: Boolean,
     default: false

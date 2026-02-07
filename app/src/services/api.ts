@@ -29,8 +29,10 @@ const fetchWithAuth = async (url: string, options: RequestInit = {}): Promise<Re
 // Auth API
 export const authApi = {
     login: async (email: string, password: string) => {
-        const res = await fetchWithAuth('/auth/login', {
+        // Don't use fetchWithAuth - login doesn't need auth token
+        const res = await fetch(`${API_BASE_URL}/auth/login`, {
             method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password }),
         });
         const data = await res.json();
@@ -42,8 +44,10 @@ export const authApi = {
     },
 
     register: async (email: string, password: string, name: string, role?: string) => {
-        const res = await fetchWithAuth('/auth/register', {
+        // Don't use fetchWithAuth - register doesn't need auth token
+        const res = await fetch(`${API_BASE_URL}/auth/register`, {
             method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email, password, name, role }),
         });
         const data = await res.json();

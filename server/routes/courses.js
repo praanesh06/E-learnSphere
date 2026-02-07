@@ -40,6 +40,9 @@ router.get('/:id', async (req, res) => {
 // Create course (instructor/admin only)
 router.post('/', auth, authorize('instructor', 'admin'), async (req, res) => {
     try {
+        console.log('Create course request received:', req.body);
+        console.log('User creating course:', req.user?.email, 'Role:', req.user?.role);
+
         const courseData = {
             ...req.body,
             instructorId: req.user._id.toString()
@@ -48,8 +51,10 @@ router.post('/', auth, authorize('instructor', 'admin'), async (req, res) => {
         const course = new Course(courseData);
         await course.save();
 
+        console.log('Course created successfully:', course._id);
         res.status(201).json({ success: true, data: course });
     } catch (error) {
+        console.error('Course creation error:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });

@@ -1,15 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { authService, courseService } from '@/services/mockApi';
+import { coursesApi, authApi } from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { 
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter 
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from '@/components/ui/dialog';
-import { 
-  Plus, Search, Grid, List, Edit, Trash2, Eye, Share2, 
+import {
+  Plus, Search, Grid, List, Edit, Trash2, Eye, Share2,
   Clock, CheckCircle, XCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -34,16 +34,19 @@ export default function AdminCourses() {
     filterCourses();
   }, [searchQuery, courses]);
 
-  const loadCourses = () => {
-    const currentUser = authService.getCurrentUser();
+  const loadCourses = async () => {
+    const currentUser = authApi.getCurrentUser();
     if (!currentUser) {
       navigate('/login');
       return;
     }
 
-    const allCourses = courseService.getAll({ instructorId: currentUser.id });
-    setCourses(allCourses);
-    setFilteredCourses(allCourses);
+    const userId = currentUser._id || currentUser.id;
+    const response = await coursesApi.getAll({ instructorId: userId });
+    if (response.success && response.data) {
+      setCourses(response.data);
+      setFilteredCourses(response.data);
+    }
   };
 
   const filterCourses = () => {
@@ -61,10 +64,11 @@ export default function AdminCourses() {
     setFilteredCourses(filtered);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!courseToDelete) return;
 
-    const result = courseService.delete(courseToDelete.id);
+    const courseId = (courseToDelete as any)._id || courseToDelete.id;
+    const result = await coursesApi.delete(courseId);
     if (result.success) {
       toast.success('Course deleted successfully');
       loadCourses();
@@ -77,18 +81,20 @@ export default function AdminCourses() {
 
   const handleShare = () => {
     if (!courseToShare) return;
-    
-    const url = `${window.location.origin}/courses/${courseToShare.id}`;
+
+    const courseId = (courseToShare as any)._id || courseToShare.id;
+    const url = `${window.location.origin}/courses/${courseId}`;
     navigator.clipboard.writeText(url);
     toast.success('Link copied to clipboard!');
     setShareDialogOpen(false);
     setCourseToShare(null);
   };
 
-  const handleTogglePublish = (course: Course) => {
+  const handleTogglePublish = async (course: Course) => {
     const newStatus = course.status === 'published' ? 'draft' : 'published';
-    const result = courseService.update(course.id, { status: newStatus });
-    
+    const courseId = (course as any)._id || getCourseId(course);
+    const result = await coursesApi.update(courseId, { status: newStatus });
+
     if (result.success) {
       toast.success(`Course ${newStatus === 'published' ? 'published' : 'unpublished'} successfully`);
       loadCourses();
@@ -103,6 +109,9 @@ export default function AdminCourses() {
     }
     return `${mins}m`;
   };
+
+  // Helper to get course ID (MongoDB uses _id, frontend might have id)
+  const getCourseId = (course: Course) => (course as any)._id || course.id;
 
   const draftCourses = filteredCourses.filter(c => c.status === 'draft');
   const publishedCourses = filteredCourses.filter(c => c.status === 'published');
@@ -140,7 +149,7 @@ export default function AdminCourses() {
               <List className="w-4 h-4" />
             </button>
           </div>
-          <Button 
+          <Button
             onClick={() => navigate('/admin/courses/new')}
             className="bg-[#3B5BFF] hover:bg-[#2a4aee]"
           >
@@ -164,7 +173,7 @@ export default function AdminCourses() {
             </div>
             <div className="space-y-4">
               {draftCourses.map(course => (
-                <Card key={course.id} className="border-0 shadow-sm hover:shadow-md transition-shadow">
+                <Card key={getCourseId(course)} className="border-0 shadow-sm hover:shadow-md transition-shadow">
                   <CardContent className="p-4">
                     <div className="flex gap-4">
                       <div className="w-24 h-16 rounded-lg overflow-hidden flex-shrink-0">
@@ -208,7 +217,7 @@ export default function AdminCourses() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => navigate(`/admin/courses/${course.id}/edit`)}
+                          onClick={() => navigate(`/admin/courses/${getCourseId(course)}/edit`)}
                         >
                           <Edit className="w-4 h-4" />
                         </Button>
@@ -256,7 +265,7 @@ export default function AdminCourses() {
             </div>
             <div className="space-y-4">
               {publishedCourses.map(course => (
-                <Card key={course.id} className="border-0 shadow-sm hover:shadow-md transition-shadow">
+                <Card key={getCourseId(course)} className="border-0 shadow-sm hover:shadow-md transition-shadow">
                   <CardContent className="p-4">
                     <div className="flex gap-4">
                       <div className="w-24 h-16 rounded-lg overflow-hidden flex-shrink-0">
@@ -303,7 +312,7 @@ export default function AdminCourses() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => navigate(`/admin/courses/${course.id}/edit`)}
+                          onClick={() => navigate(`/admin/courses/${getCourseId(course)}/edit`)}
                         >
                           <Edit className="w-4 h-4" />
                         </Button>
@@ -347,8 +356,8 @@ export default function AdminCourses() {
             {filteredCourses.length > 0 ? (
               <div className="divide-y">
                 {filteredCourses.map(course => (
-                  <div 
-                    key={course.id}
+                  <div
+                    key={getCourseId(course)}
                     className="flex items-center gap-4 p-4 hover:bg-gray-50 transition-colors"
                   >
                     <div className="w-16 h-12 rounded-lg overflow-hidden flex-shrink-0">
@@ -380,7 +389,7 @@ export default function AdminCourses() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => navigate(`/admin/courses/${course.id}/edit`)}
+                        onClick={() => navigate(`/admin/courses/${getCourseId(course)}/edit`)}
                       >
                         <Edit className="w-4 h-4" />
                       </Button>

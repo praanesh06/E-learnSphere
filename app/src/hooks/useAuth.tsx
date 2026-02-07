@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import type { User, UserRole, LoginCredentials, RegisterData } from '@/types';
-import { authService } from '@/services/mockApi';
+import { authApi } from '@/services/api';
 
 interface AuthContextType {
   user: User | null;
@@ -21,31 +21,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Check for existing session
-    const currentUser = authService.getCurrentUser();
+    const currentUser = authApi.getCurrentUser();
     setUser(currentUser);
     setIsLoading(false);
   }, []);
 
   const login = async (credentials: LoginCredentials) => {
-    const result = authService.login(credentials);
-    if (result.success && result.data) {
-      setUser(result.data.user);
-      return { success: true };
+    try {
+      const result = await authApi.login(credentials.email, credentials.password);
+      if (result.success && result.data) {
+        setUser(result.data.user);
+        return { success: true };
+      }
+      return { success: false, error: result.error || 'Login failed' };
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Network error' };
     }
-    return { success: false, error: result.error };
   };
 
   const register = async (data: RegisterData) => {
-    const result = authService.register(data);
-    if (result.success && result.data) {
-      setUser(result.data.user);
-      return { success: true };
+    try {
+      const result = await authApi.register(data.email, data.password, data.name, data.role);
+      if (result.success && result.data) {
+        setUser(result.data.user);
+        return { success: true };
+      }
+      return { success: false, error: result.error || 'Registration failed' };
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Network error' };
     }
-    return { success: false, error: result.error };
   };
 
   const logout = () => {
-    authService.logout();
+    authApi.logout();
     setUser(null);
   };
 
@@ -54,7 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const refreshUser = () => {
-    const currentUser = authService.getCurrentUser();
+    const currentUser = authApi.getCurrentUser();
     setUser(currentUser);
   };
 
@@ -83,3 +91,4 @@ export function useAuth() {
   }
   return context;
 }
+

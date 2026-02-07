@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { courseService, lessonService, enrollmentService, reviewService, authService } from '@/services/mockApi';
+import { coursesApi, lessonsApi, enrollmentsApi, reviewsApi, authApi } from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -9,8 +9,8 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { 
-  Clock, Users, Star, PlayCircle, FileText, Image, CheckCircle, 
+import {
+  Clock, Users, Star, PlayCircle, FileText, Image, CheckCircle,
   Lock, ArrowLeft, BookOpen, MessageSquare, Send
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -26,8 +26,8 @@ export default function CourseDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [newReview, setNewReview] = useState({ rating: 5, comment: '' });
-  const isAuthenticated = authService.isAuthenticated();
-  const currentUser = authService.getCurrentUser();
+  const isAuthenticated = authApi.isAuthenticated();
+  const currentUser = authApi.getCurrentUser();
 
   useEffect(() => {
     if (id) {
@@ -35,39 +35,44 @@ export default function CourseDetailPage() {
     }
   }, [id]);
 
-  const loadCourseData = () => {
+  const loadCourseData = async () => {
     if (!id) return;
-    
-    const courseData = courseService.getById(id);
-    if (courseData) {
-      setCourse(courseData);
-      courseService.incrementViews(id);
-      
-      const lessonsData = lessonService.getByCourse(id);
-      setLessons(lessonsData);
-      
-      const reviewsData = reviewService.getByCourse(id);
-      setReviews(reviewsData);
-      
+
+    const courseResponse = await coursesApi.getById(id);
+    if (courseResponse.success && courseResponse.data) {
+      setCourse(courseResponse.data);
+
+      const lessonsResponse = await lessonsApi.getByCourse(id);
+      if (lessonsResponse.success && lessonsResponse.data) {
+        setLessons(lessonsResponse.data);
+      }
+
+      const reviewsResponse = await reviewsApi.getByCourse(id);
+      if (reviewsResponse.success && reviewsResponse.data) {
+        setReviews(reviewsResponse.data);
+      }
+
       if (currentUser) {
-        const userEnrollments = enrollmentService.getByUser(currentUser.id);
-        const courseEnrollment = userEnrollments.find(e => e.courseId === id);
-        setEnrollment(courseEnrollment || null);
+        const enrollmentsResponse = await enrollmentsApi.getByUser();
+        if (enrollmentsResponse.success && enrollmentsResponse.data) {
+          const courseEnrollment = enrollmentsResponse.data.find((e: any) => e.courseId === id);
+          setEnrollment(courseEnrollment || null);
+        }
       }
     }
     setIsLoading(false);
   };
 
-  const handleEnroll = () => {
+  const handleEnroll = async () => {
     if (!isAuthenticated) {
       toast.error('Please sign in to enroll');
       navigate('/login');
       return;
     }
-    
+
     if (!currentUser || !id) return;
-    
-    const result = enrollmentService.enroll(currentUser.id, id);
+
+    const result = await enrollmentsApi.enroll(id);
     if (result.success) {
       toast.success('Enrolled successfully!');
       loadCourseData();
@@ -76,15 +81,11 @@ export default function CourseDetailPage() {
     }
   };
 
-  const handleSubmitReview = () => {
+  const handleSubmitReview = async () => {
     if (!currentUser || !id) return;
-    
-    const result = reviewService.create({
-      courseId: id,
-      rating: newReview.rating,
-      comment: newReview.comment
-    });
-    
+
+    const result = await reviewsApi.create(id, newReview.rating, newReview.comment);
+
     if (result.success) {
       toast.success('Review submitted!');
       setReviewDialogOpen(false);
@@ -112,7 +113,7 @@ export default function CourseDetailPage() {
     return `${mins}m`;
   };
 
-  const averageRating = reviews.length 
+  const averageRating = reviews.length
     ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
     : '0';
 
@@ -147,14 +148,14 @@ export default function CourseDetailPage() {
       {/* Hero Section */}
       <div className="bg-[#0B0E14] text-white py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <button 
+          <button
             onClick={() => navigate('/courses')}
             className="flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
             Back to courses
           </button>
-          
+
           <div className="grid lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2">
               <div className="flex flex-wrap gap-2 mb-4">
@@ -186,7 +187,7 @@ export default function CourseDetailPage() {
                 </div>
               </div>
             </div>
-            
+
             <div className="lg:col-span-1">
               <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
                 {enrollment ? (
@@ -198,9 +199,9 @@ export default function CourseDetailPage() {
                         <span className="font-medium">{enrollment.progress}%</span>
                       </div>
                     </div>
-                    <Button 
+                    <Button
                       className="w-full bg-[#3B5BFF] hover:bg-[#2a4aee]"
-                      onClick={() => navigate(`/learn/${course.id}`)}
+                      onClick={() => navigate(`/learn/${(course as any)._id || course.id}`)}
                     >
                       {enrollment.progress === 0 ? 'Start Learning' : 'Continue Learning'}
                     </Button>
@@ -214,7 +215,7 @@ export default function CourseDetailPage() {
                         <p className="text-3xl font-bold">Free</p>
                       )}
                     </div>
-                    <Button 
+                    <Button
                       className="w-full bg-[#3B5BFF] hover:bg-[#2a4aee]"
                       onClick={handleEnroll}
                       disabled={!canAccess}
@@ -250,33 +251,36 @@ export default function CourseDetailPage() {
           <TabsContent value="content" className="space-y-4">
             <div className="bg-white rounded-xl shadow-sm">
               {lessons.length > 0 ? (
-                lessons.map((lesson, index) => (
-                  <div
-                    key={lesson.id}
-                    className={`flex items-center gap-4 p-4 ${index !== lessons.length - 1 ? 'border-b' : ''} ${
-                      enrollment ? 'hover:bg-gray-50 cursor-pointer' : 'opacity-70'
-                    }`}
-                    onClick={() => enrollment && navigate(`/learn/${course.id}?lesson=${lesson.id}`)}
-                  >
-                    <div className="w-8 h-8 rounded-full bg-[#F6F8FC] flex items-center justify-center text-sm font-medium text-gray-500">
-                      {index + 1}
+                lessons.map((lesson, index) => {
+                  const lessonId = (lesson as any)._id || lesson.id;
+                  const courseId = (course as any)._id || course.id;
+                  return (
+                    <div
+                      key={lessonId}
+                      className={`flex items-center gap-4 p-4 ${index !== lessons.length - 1 ? 'border-b' : ''} ${enrollment ? 'hover:bg-gray-50 cursor-pointer' : 'opacity-70'
+                        }`}
+                      onClick={() => enrollment && navigate(`/learn/${courseId}?lesson=${lessonId}`)}
+                    >
+                      <div className="w-8 h-8 rounded-full bg-[#F6F8FC] flex items-center justify-center text-sm font-medium text-gray-500">
+                        {index + 1}
+                      </div>
+                      <div className="w-10 h-10 rounded-lg bg-[#3B5BFF]/10 flex items-center justify-center text-[#3B5BFF]">
+                        {getLessonIcon(lesson.type)}
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-medium text-[#0B0E14]">{lesson.title}</h4>
+                        <p className="text-sm text-gray-500">{lesson.description}</p>
+                      </div>
+                      <div className="flex items-center gap-4 text-sm text-gray-500">
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-4 h-4" />
+                          {formatDuration(lesson.duration)}
+                        </span>
+                        {!enrollment && <Lock className="w-4 h-4" />}
+                      </div>
                     </div>
-                    <div className="w-10 h-10 rounded-lg bg-[#3B5BFF]/10 flex items-center justify-center text-[#3B5BFF]">
-                      {getLessonIcon(lesson.type)}
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-medium text-[#0B0E14]">{lesson.title}</h4>
-                      <p className="text-sm text-gray-500">{lesson.description}</p>
-                    </div>
-                    <div className="flex items-center gap-4 text-sm text-gray-500">
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-4 h-4" />
-                        {formatDuration(lesson.duration)}
-                      </span>
-                      {!enrollment && <Lock className="w-4 h-4" />}
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <div className="p-8 text-center text-gray-500">
                   No lessons available yet
@@ -294,8 +298,8 @@ export default function CourseDetailPage() {
                     <p className="text-5xl font-bold text-[#0B0E14]">{averageRating}</p>
                     <div className="flex gap-1 my-2">
                       {[...Array(5)].map((_, i) => (
-                        <Star 
-                          key={i} 
+                        <Star
+                          key={i}
                           className={`w-5 h-5 ${i < Math.round(Number(averageRating)) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`}
                         />
                       ))}
@@ -320,7 +324,7 @@ export default function CourseDetailPage() {
 
               {/* Write Review Button */}
               {isAuthenticated && enrollment && !userHasReviewed && (
-                <Button 
+                <Button
                   onClick={() => setReviewDialogOpen(true)}
                   className="bg-[#3B5BFF] hover:bg-[#2a4aee]"
                 >
@@ -331,35 +335,38 @@ export default function CourseDetailPage() {
 
               {/* Reviews List */}
               <div className="grid gap-4">
-                {reviews.map(review => (
-                  <Card key={review.id}>
-                    <CardContent className="p-5">
-                      <div className="flex items-start gap-4">
-                        <Avatar>
-                          <AvatarFallback className="bg-[#3B5BFF] text-white">
-                            {review.userId.charAt(0).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <div className="flex gap-0.5">
-                              {[...Array(5)].map((_, i) => (
-                                <Star 
-                                  key={i} 
-                                  className={`w-4 h-4 ${i < review.rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`}
-                                />
-                              ))}
+                {reviews.map(review => {
+                  const reviewId = (review as any)._id || review.id;
+                  return (
+                    <Card key={reviewId}>
+                      <CardContent className="p-5">
+                        <div className="flex items-start gap-4">
+                          <Avatar>
+                            <AvatarFallback className="bg-[#3B5BFF] text-white">
+                              {review.userId.charAt(0).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="flex gap-0.5">
+                                {[...Array(5)].map((_, i) => (
+                                  <Star
+                                    key={i}
+                                    className={`w-4 h-4 ${i < review.rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`}
+                                  />
+                                ))}
+                              </div>
+                              <span className="text-sm text-gray-500">
+                                {new Date(review.createdAt).toLocaleDateString()}
+                              </span>
                             </div>
-                            <span className="text-sm text-gray-500">
-                              {new Date(review.createdAt).toLocaleDateString()}
-                            </span>
+                            <p className="text-gray-700">{review.comment}</p>
                           </div>
-                          <p className="text-gray-700">{review.comment}</p>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             </div>
           </TabsContent>
@@ -382,7 +389,7 @@ export default function CourseDetailPage() {
                     onClick={() => setNewReview({ ...newReview, rating: star })}
                     className="p-1"
                   >
-                    <Star 
+                    <Star
                       className={`w-8 h-8 ${star <= newReview.rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`}
                     />
                   </button>
@@ -398,7 +405,7 @@ export default function CourseDetailPage() {
                 rows={4}
               />
             </div>
-            <Button 
+            <Button
               onClick={handleSubmitReview}
               className="w-full bg-[#3B5BFF] hover:bg-[#2a4aee]"
               disabled={!newReview.comment.trim()}

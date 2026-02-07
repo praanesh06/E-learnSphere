@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { dashboardService, authService } from '@/services/mockApi';
+import { enrollmentsApi, authApi } from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { 
-  BookOpen, Trophy, Flame, Star, ArrowRight, 
-  PlayCircle, CheckCircle, GraduationCap, Zap 
+import {
+  BookOpen, Trophy, Flame, Star, ArrowRight,
+  PlayCircle, CheckCircle, GraduationCap, Zap
 } from 'lucide-react';
 import type { CourseWithProgress, UserPoints, Activity } from '@/types';
 
@@ -22,17 +22,38 @@ export default function MyCoursesPage() {
     loadDashboardData();
   }, []);
 
-  const loadDashboardData = () => {
-    const currentUser = authService.getCurrentUser();
+  const loadDashboardData = async () => {
+    const currentUser = authApi.getCurrentUser();
     if (!currentUser) {
       navigate('/login');
       return;
     }
 
-    const dashboard = dashboardService.getLearnerDashboard(currentUser.id);
-    setCourses(dashboard.courses);
-    setPoints(dashboard.points);
-    setActivities(dashboard.activities);
+    // Load enrolled courses from real API
+    const enrollmentsResponse = await enrollmentsApi.getByUser();
+    if (enrollmentsResponse.success && enrollmentsResponse.data) {
+      // Transform enrollments to courses with progress
+      const coursesWithProgress = enrollmentsResponse.data.map((e: any) => ({
+        ...e.course,
+        id: e.course?._id || e.course?.id || e.courseId,
+        enrollment: e,
+        progress: e.progress || 0,
+        lessonCount: e.course?.lessonsCount || 0
+      }));
+      setCourses(coursesWithProgress);
+    }
+
+    // For now, use placeholder points until we have a real points API
+    setPoints({
+      userId: currentUser._id || currentUser.id,
+      totalPoints: 0,
+      streakDays: 0,
+      coursesCompleted: 0,
+      quizzesPassed: 0,
+      badges: []
+    });
+
+    setActivities([]);
     setIsLoading(false);
   };
 
@@ -59,7 +80,7 @@ export default function MyCoursesPage() {
         {/* Welcome Section */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-[#0B0E14] mb-2">
-            Welcome back, {authService.getCurrentUser()?.name.split(' ')[0]}!
+            Welcome back, {authApi.getCurrentUser()?.name?.split(' ')[0] || 'Learner'}!
           </h1>
           <p className="text-gray-600">Continue your learning journey</p>
         </div>
@@ -135,51 +156,54 @@ export default function MyCoursesPage() {
 
             {courses.length > 0 ? (
               <div className="space-y-4">
-                {courses.map(course => (
-                  <Card 
-                    key={course.id} 
-                    className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-                    onClick={() => navigate(`/learn/${course.id}`)}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex gap-4">
-                        <div className="w-32 h-20 rounded-lg overflow-hidden flex-shrink-0">
-                          <img
-                            src={course.image || 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=300'}
-                            alt={course.title}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <h3 className="font-semibold text-[#0B0E14] truncate">{course.title}</h3>
-                              <p className="text-sm text-gray-500">{course.instructor?.name}</p>
-                            </div>
-                            <Badge className={`
+                {courses.map(course => {
+                  const courseId = (course as any)._id || course.id;
+                  return (
+                    <Card
+                      key={courseId}
+                      className="border-0 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                      onClick={() => navigate(`/learn/${courseId}`)}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex gap-4">
+                          <div className="w-32 h-20 rounded-lg overflow-hidden flex-shrink-0">
+                            <img
+                              src={course.image || 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?w=300'}
+                              alt={course.title}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <h3 className="font-semibold text-[#0B0E14] truncate">{course.title}</h3>
+                                <p className="text-sm text-gray-500">{course.instructor?.name}</p>
+                              </div>
+                              <Badge className={`
                               ${course.enrollment?.status === 'completed' ? 'bg-green-100 text-green-700' : ''}
                               ${course.enrollment?.status === 'in_progress' ? 'bg-blue-100 text-blue-700' : ''}
                               ${course.enrollment?.status === 'not_started' ? 'bg-gray-100 text-gray-700' : ''}
                             `}>
-                              {course.enrollment?.status === 'completed' && <CheckCircle className="w-3 h-3 mr-1" />}
-                              {course.enrollment?.status === 'in_progress' && <PlayCircle className="w-3 h-3 mr-1" />}
-                              {course.enrollment?.status === 'not_started' && <BookOpen className="w-3 h-3 mr-1" />}
-                              {course.enrollment?.status === 'completed' ? 'Completed' : 
-                               course.enrollment?.status === 'in_progress' ? 'In Progress' : 'Not Started'}
-                            </Badge>
-                          </div>
-                          <div className="mt-3">
-                            <div className="flex items-center justify-between text-sm mb-1">
-                              <span className="text-gray-500">{course.progress}% complete</span>
-                              <span className="text-gray-500">{course.lessonCount} lessons</span>
+                                {course.enrollment?.status === 'completed' && <CheckCircle className="w-3 h-3 mr-1" />}
+                                {course.enrollment?.status === 'in_progress' && <PlayCircle className="w-3 h-3 mr-1" />}
+                                {course.enrollment?.status === 'not_started' && <BookOpen className="w-3 h-3 mr-1" />}
+                                {course.enrollment?.status === 'completed' ? 'Completed' :
+                                  course.enrollment?.status === 'in_progress' ? 'In Progress' : 'Not Started'}
+                              </Badge>
                             </div>
-                            <Progress value={course.progress} className="h-2" />
+                            <div className="mt-3">
+                              <div className="flex items-center justify-between text-sm mb-1">
+                                <span className="text-gray-500">{course.progress}% complete</span>
+                                <span className="text-gray-500">{course.lessonCount} lessons</span>
+                              </div>
+                              <Progress value={course.progress} className="h-2" />
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             ) : (
               <Card className="border-0 shadow-sm">
@@ -189,7 +213,7 @@ export default function MyCoursesPage() {
                   </div>
                   <h3 className="text-lg font-medium text-[#0B0E14] mb-2">No courses yet</h3>
                   <p className="text-gray-500 mb-4">Start your learning journey by enrolling in a course</p>
-                  <Button 
+                  <Button
                     onClick={() => navigate('/courses')}
                     className="bg-[#3B5BFF] hover:bg-[#2a4aee]"
                   >
@@ -208,7 +232,7 @@ export default function MyCoursesPage() {
                 <CardContent className="p-5">
                   <h3 className="font-semibold text-[#0B0E14] mb-4">Your Level</h3>
                   <div className="flex items-center gap-4">
-                    <div 
+                    <div
                       className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl"
                       style={{ backgroundColor: `${badgeLevel.color}20` }}
                     >
@@ -230,8 +254,8 @@ export default function MyCoursesPage() {
                         {points ? Math.min(100, Math.round((points.totalPoints % 500) / 5)) : 0}%
                       </span>
                     </div>
-                    <Progress 
-                      value={points ? Math.min(100, Math.round((points.totalPoints % 500) / 5)) : 0} 
+                    <Progress
+                      value={points ? Math.min(100, Math.round((points.totalPoints % 500) / 5)) : 0}
                       className="h-2"
                     />
                   </div>
@@ -278,16 +302,16 @@ export default function MyCoursesPage() {
               <CardContent className="p-5">
                 <h3 className="font-semibold text-[#0B0E14] mb-4">Quick Actions</h3>
                 <div className="space-y-2">
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="w-full justify-start"
                     onClick={() => navigate('/courses')}
                   >
                     <BookOpen className="w-4 h-4 mr-2" />
                     Find New Courses
                   </Button>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="w-full justify-start"
                     onClick={() => navigate('/profile')}
                   >

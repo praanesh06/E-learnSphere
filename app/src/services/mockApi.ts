@@ -34,7 +34,15 @@ const getNow = () => new Date().toISOString();
 
 const getStorage = <T>(key: string, defaultValue: T): T => {
   const data = localStorage.getItem(key);
-  return data ? JSON.parse(data) : defaultValue;
+  if (!data) return defaultValue;
+
+  try {
+    return JSON.parse(data);
+  } catch {
+    // If it's not valid JSON, return the raw value or default
+    // This handles cases where the token is stored as a raw string
+    return data as unknown as T;
+  }
 };
 
 const setStorage = <T>(key: string, value: T) => {

@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { courseService } from '@/services/mockApi';
-import { quizzesApi } from '@/services/api';
+import { coursesApi, quizzesApi } from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -53,9 +52,9 @@ export default function AdminQuizBuilder() {
   }, [id]);
 
   const loadData = async () => {
-    const courseData = courseService.getById(id!);
-    if (courseData) {
-      setCourse(courseData);
+    const courseResponse = await coursesApi.getById(id!);
+    if (courseResponse.success && courseResponse.data) {
+      setCourse(courseResponse.data);
 
       const response = await quizzesApi.getByCourse(id!);
       if (response.success && response.data && response.data.length > 0) {
@@ -85,7 +84,8 @@ export default function AdminQuizBuilder() {
 
     let result;
     if (quiz) {
-      result = await quizzesApi.update(quiz.id, {
+      const quizId = (quiz as any)._id || quiz.id;
+      result = await quizzesApi.update(quizId, {
         title: quizForm.title,
         description: quizForm.description,
         passingScore: quizForm.passingScore,
@@ -135,15 +135,17 @@ export default function AdminQuizBuilder() {
       return;
     }
 
+    const quizId = (quiz as any)._id || quiz.id;
     let result;
     if (editingQuestion) {
-      result = await quizzesApi.updateQuestion(quiz.id, editingQuestion.id, {
+      const questionId = (editingQuestion as any)._id || editingQuestion.id;
+      result = await quizzesApi.updateQuestion(quizId, questionId, {
         text: questionForm.text,
         type: questionForm.type,
         options: questionForm.options
       });
     } else {
-      result = await quizzesApi.addQuestion(quiz.id, {
+      result = await quizzesApi.addQuestion(quizId, {
         text: questionForm.text,
         type: questionForm.type,
         options: questionForm.options
@@ -163,7 +165,9 @@ export default function AdminQuizBuilder() {
   const handleDeleteQuestion = async () => {
     if (!questionToDelete || !quiz) return;
 
-    const result = await quizzesApi.deleteQuestion(quiz.id, questionToDelete.id);
+    const quizId = (quiz as any)._id || quiz.id;
+    const questionId = (questionToDelete as any)._id || questionToDelete.id;
+    const result = await quizzesApi.deleteQuestion(quizId, questionId);
     if (result.success) {
       toast.success('Question deleted');
       loadData();

@@ -1,17 +1,17 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { courseService, lessonService } from '@/services/mockApi';
+import { coursesApi, lessonsApi, quizzesApi } from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { 
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter 
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from '@/components/ui/dialog';
-import { 
-  ArrowLeft, Plus, Edit2, Trash2, GripVertical, PlayCircle, 
+import {
+  ArrowLeft, Plus, Edit2, Trash2, GripVertical, PlayCircle,
   FileText, Image, CheckCircle, Clock, Upload, Save
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -20,22 +20,24 @@ import type { Course, Lesson, LessonType } from '@/types';
 export default function AdminLessons() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  
+
   const [course, setCourse] = useState<Course | null>(null);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [lessonDialogOpen, setLessonDialogOpen] = useState(false);
   const [editingLesson, setEditingLesson] = useState<Lesson | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [lessonToDelete, setLessonToDelete] = useState<Lesson | null>(null);
-  
-  const [formData, setFormData] = useState<Partial<Lesson>>({
+
+  const [formData, setFormData] = useState<Partial<Lesson> & { quizId?: string }>({
     title: '',
     type: 'video',
     description: '',
     content: '',
     duration: 0,
-    allowDownload: false
+    allowDownload: false,
+    quizId: ''
   });
+  const [courseQuizzes, setCourseQuizzes] = useState<any[]>([]);
 
   useEffect(() => {
     if (id) {
@@ -43,19 +45,26 @@ export default function AdminLessons() {
     }
   }, [id]);
 
-  const loadData = () => {
-    const courseData = courseService.getById(id!);
-    if (courseData) {
-      setCourse(courseData);
-      const lessonsData = lessonService.getByCourse(id!);
-      setLessons(lessonsData);
+  const loadData = async () => {
+    const courseResponse = await coursesApi.getById(id!);
+    if (courseResponse.success && courseResponse.data) {
+      setCourse(courseResponse.data);
+      const lessonsResponse = await lessonsApi.getByCourse(id!);
+      if (lessonsResponse.success && lessonsResponse.data) {
+        setLessons(lessonsResponse.data);
+      }
+      // Load quizzes for this course
+      const quizzesResponse = await quizzesApi.getByCourse(id!);
+      if (quizzesResponse.success && quizzesResponse.data) {
+        setCourseQuizzes(quizzesResponse.data);
+      }
     } else {
       toast.error('Course not found');
       navigate('/admin/courses');
     }
   };
 
-  const handleSaveLesson = () => {
+  const handleSaveLesson = async () => {
     if (!formData.title?.trim()) {
       toast.error('Title is required');
       return;
@@ -68,9 +77,10 @@ export default function AdminLessons() {
 
     let result;
     if (editingLesson) {
-      result = lessonService.update(editingLesson.id, data);
+      const lessonId = (editingLesson as any)._id || editingLesson.id;
+      result = await lessonsApi.update(lessonId, data);
     } else {
-      result = lessonService.create(data);
+      result = await lessonsApi.create(data);
     }
 
     if (result.success) {
@@ -91,10 +101,11 @@ export default function AdminLessons() {
     }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!lessonToDelete) return;
 
-    const result = lessonService.delete(lessonToDelete.id);
+    const lessonId = (lessonToDelete as any)._id || lessonToDelete.id;
+    const result = await lessonsApi.delete(lessonId);
     if (result.success) {
       toast.success('Lesson deleted');
       loadData();
@@ -113,7 +124,8 @@ export default function AdminLessons() {
       description: lesson.description,
       content: lesson.content,
       duration: lesson.duration,
-      allowDownload: lesson.allowDownload
+      allowDownload: lesson.allowDownload,
+      quizId: (lesson as any).quizId || ''
     });
     setLessonDialogOpen(true);
   };
@@ -126,7 +138,8 @@ export default function AdminLessons() {
       description: '',
       content: '',
       duration: 0,
-      allowDownload: false
+      allowDownload: false,
+      quizId: ''
     });
     setLessonDialogOpen(true);
   };
@@ -269,11 +282,10 @@ export default function AdminLessons() {
                     key={type.value}
                     type="button"
                     onClick={() => setFormData({ ...formData, type: type.value as LessonType })}
-                    className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-colors ${
-                      formData.type === type.value
-                        ? 'border-[#3B5BFF] bg-[#3B5BFF]/5'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
+                    className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-colors ${formData.type === type.value
+                      ? 'border-[#3B5BFF] bg-[#3B5BFF]/5'
+                      : 'border-gray-200 hover:border-gray-300'
+                      }`}
                   >
                     <type.icon className={`w-5 h-5 ${formData.type === type.value ? 'text-[#3B5BFF]' : 'text-gray-500'}`} />
                     <span className={`text-xs ${formData.type === type.value ? 'text-[#3B5BFF]' : 'text-gray-600'}`}>
@@ -339,9 +351,35 @@ export default function AdminLessons() {
                 </div>
               )}
               {formData.type === 'quiz' && (
-                <p className="text-sm text-gray-500">
-                  Quiz will be configured separately. Save this lesson first.
-                </p>
+                <div className="space-y-3">
+                  {courseQuizzes.length > 0 ? (
+                    <>
+                      <Label>Select Quiz</Label>
+                      <select
+                        value={formData.quizId || ''}
+                        onChange={(e) => setFormData({ ...formData, quizId: e.target.value })}
+                        className="w-full p-2 border rounded-lg text-sm"
+                      >
+                        <option value="">Select a quiz...</option>
+                        {courseQuizzes.map(q => (
+                          <option key={q._id || q.id} value={q._id || q.id}>
+                            {q.title} ({q.questions?.length || 0} questions)
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-gray-500">
+                        Or <button type="button" onClick={() => navigate(`/admin/courses/${id}/quiz`)} className="text-[#3B5BFF] underline">create a new quiz</button>
+                      </p>
+                    </>
+                  ) : (
+                    <div className="text-center py-4 bg-gray-50 rounded-lg">
+                      <p className="text-sm text-gray-500 mb-2">No quizzes available for this course.</p>
+                      <Button type="button" variant="outline" size="sm" onClick={() => navigate(`/admin/courses/${id}/quiz`)}>
+                        Create Quiz First
+                      </Button>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
 

@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { courseService, lessonService, enrollmentService, progressService } from '@/services/mockApi';
-import { quizzesApi } from '@/services/api';
+import { coursesApi, lessonsApi, enrollmentsApi, quizzesApi, authApi } from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
@@ -34,7 +33,7 @@ export default function LessonPlayerPage() {
   useEffect(() => {
     const lessonId = searchParams.get('lesson');
     if (lessonId && lessons.length > 0) {
-      const lesson = lessons.find(l => l.id === lessonId);
+      const lesson = lessons.find(l => (l as any)._id === lessonId || l.id === lessonId);
       if (lesson) {
         setCurrentLesson(lesson);
       }
@@ -46,12 +45,14 @@ export default function LessonPlayerPage() {
   const loadCourseData = async () => {
     if (!courseId) return;
 
-    const courseData = courseService.getById(courseId);
-    if (courseData) {
-      setCourse(courseData);
+    const courseResponse = await coursesApi.getById(courseId);
+    if (courseResponse.success && courseResponse.data) {
+      setCourse(courseResponse.data);
 
-      const lessonsData = lessonService.getByCourse(courseId);
-      setLessons(lessonsData);
+      const lessonsResponse = await lessonsApi.getByCourse(courseId);
+      if (lessonsResponse.success && lessonsResponse.data) {
+        setLessons(lessonsResponse.data);
+      }
 
       // Load quizzes from real API
       const quizResponse = await quizzesApi.getByCourse(courseId);
@@ -60,26 +61,23 @@ export default function LessonPlayerPage() {
       }
 
       // Get enrollment
-      const user = JSON.parse(localStorage.getItem('ls_current_user') || 'null');
+      const user = authApi.getCurrentUser();
       if (user) {
-        const enrollments = enrollmentService.getByUser(user.id);
-        const courseEnrollment = enrollments.find(e => e.courseId === courseId);
-        if (courseEnrollment) {
-          setEnrollment(courseEnrollment);
-
-          // Update to in_progress if not started
-          if (courseEnrollment.status === 'not_started') {
-            enrollmentService.updateProgress(courseEnrollment.id, 0);
+        const enrollmentsResponse = await enrollmentsApi.getByUser();
+        if (enrollmentsResponse.success && enrollmentsResponse.data) {
+          const courseEnrollment = enrollmentsResponse.data.find((e: any) => e.courseId === courseId);
+          if (courseEnrollment) {
+            setEnrollment(courseEnrollment);
           }
         }
       }
 
-      // Get completed lessons
+      // Get completed lessons from localStorage (progress tracking)
       const progress = JSON.parse(localStorage.getItem('ls_progress') || '[]');
-      const currentUser = JSON.parse(localStorage.getItem('ls_current_user') || 'null');
+      const currentUser = authApi.getCurrentUser();
       const completed = new Set<string>(
         progress
-          .filter((p: any) => p.userId === currentUser?.id && p.courseId === courseId && p.completed)
+          .filter((p: any) => (p.userId === currentUser?.id || p.userId === currentUser?._id) && p.courseId === courseId && p.completed)
           .map((p: any) => p.lessonId)
       );
       setCompletedLessons(completed);
@@ -88,28 +86,45 @@ export default function LessonPlayerPage() {
 
   const handleLessonClick = (lesson: Lesson) => {
     setCurrentLesson(lesson);
-    setSearchParams({ lesson: lesson.id });
+    setSearchParams({ lesson: (lesson as any)._id || lesson.id });
   };
 
   const handleMarkComplete = () => {
     if (!currentLesson || !courseId) return;
 
-    const user = JSON.parse(localStorage.getItem('ls_current_user') || 'null');
+    const user = authApi.getCurrentUser();
     if (!user) return;
 
-    const result = progressService.markComplete(user.id, currentLesson.id, courseId);
-    if (result.success) {
-      toast.success('Lesson completed!');
-      setCompletedLessons(prev => new Set([...prev, currentLesson.id]));
-      loadCourseData();
+    const lessonId = (currentLesson as any)._id || currentLesson.id;
+    const userId = user._id || user.id;
 
-      // Auto-advance to next lesson
-      const currentIndex = lessons.findIndex(l => l.id === currentLesson.id);
-      if (currentIndex < lessons.length - 1) {
-        setTimeout(() => {
-          handleLessonClick(lessons[currentIndex + 1]);
-        }, 1000);
-      }
+    // Store progress in localStorage
+    const progress = JSON.parse(localStorage.getItem('ls_progress') || '[]');
+    const existingIndex = progress.findIndex((p: any) => p.lessonId === lessonId && p.userId === userId);
+
+    if (existingIndex >= 0) {
+      progress[existingIndex].completed = true;
+    } else {
+      progress.push({
+        userId,
+        lessonId,
+        courseId,
+        completed: true,
+        completedAt: new Date().toISOString()
+      });
+    }
+    localStorage.setItem('ls_progress', JSON.stringify(progress));
+
+    toast.success('Lesson completed!');
+    setCompletedLessons(prev => new Set([...prev, lessonId]));
+    loadCourseData();
+
+    // Auto-advance to next lesson
+    const currentIndex = lessons.findIndex(l => ((l as any)._id || l.id) === lessonId);
+    if (currentIndex < lessons.length - 1) {
+      setTimeout(() => {
+        handleLessonClick(lessons[currentIndex + 1]);
+      }, 1000);
     }
   };
 
@@ -154,10 +169,11 @@ export default function LessonPlayerPage() {
     );
   }
 
-  const currentIndex = lessons.findIndex(l => l.id === currentLesson.id);
+  const currentLessonId = (currentLesson as any)._id || currentLesson.id;
+  const currentIndex = lessons.findIndex(l => ((l as any)._id || l.id) === currentLessonId);
   const isFirst = currentIndex === 0;
   const isLast = currentIndex === lessons.length - 1;
-  const isCompleted = completedLessons.has(currentLesson.id);
+  const isCompleted = completedLessons.has(currentLessonId);
 
   return (
     <div className="min-h-screen bg-[#0B0E14] flex">
@@ -186,12 +202,14 @@ export default function LessonPlayerPage() {
 
         <div className="overflow-y-auto h-[calc(100vh-140px)]">
           {lessons.map((lesson, index) => {
-            const isActive = lesson.id === currentLesson.id;
-            const isLessonCompleted = completedLessons.has(lesson.id);
+            const lessonId = (lesson as any)._id || lesson.id;
+            const currentLessonId = (currentLesson as any)._id || currentLesson.id;
+            const isActive = lessonId === currentLessonId;
+            const isLessonCompleted = completedLessons.has(lessonId);
 
             return (
               <button
-                key={lesson.id}
+                key={lessonId}
                 onClick={() => handleLessonClick(lesson)}
                 className={`w-full flex items-center gap-3 p-4 text-left transition-colors ${isActive
                   ? 'bg-[#3B5BFF]/20 border-l-2 border-[#3B5BFF]'
@@ -318,9 +336,24 @@ export default function LessonPlayerPage() {
             )}
 
             {currentLesson.type === 'quiz' && (() => {
-              // Find quiz linked to this lesson, or fall back to first course quiz
-              const linkedQuiz = courseQuizzes.find(q => q.lessonId === currentLesson.id)
-                || courseQuizzes[0]; // Fallback to first quiz if none specifically linked
+              // Find quiz linked to this lesson
+              let linkedQuiz = null;
+
+              // 1. Try finding by explicit quizId reference from lesson
+              if ((currentLesson as any).quizId) {
+                linkedQuiz = courseQuizzes.find(q => (q as any)._id === (currentLesson as any).quizId || q.id === (currentLesson as any).quizId);
+              }
+
+              // 2. Fallback: Try finding by lessonId match (backward compatibility)
+              if (!linkedQuiz) {
+                const lessonId = (currentLesson as any)._id || currentLesson.id;
+                linkedQuiz = courseQuizzes.find(q => q.lessonId === lessonId);
+              }
+
+              // 3. Fallback: Use first quiz available for course
+              if (!linkedQuiz && courseQuizzes.length > 0) {
+                linkedQuiz = courseQuizzes[0];
+              }
 
               return (
                 <div className="bg-white rounded-xl p-8 mb-6 text-center">
@@ -329,7 +362,7 @@ export default function LessonPlayerPage() {
                   <p className="text-gray-600 mb-6">Test your knowledge with this quiz</p>
                   {linkedQuiz ? (
                     <Button
-                      onClick={() => navigate(`/quiz/${linkedQuiz.id}`)}
+                      onClick={() => navigate(`/quiz/${(linkedQuiz as any)._id || linkedQuiz.id}`)}
                       className="bg-[#3B5BFF] hover:bg-[#2a4aee]"
                     >
                       Start Quiz

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { courseService } from '@/services/mockApi';
+import { coursesApi } from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,11 +8,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter 
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from '@/components/ui/dialog';
-import { 
-  ArrowLeft, Save, Eye, Plus, X, Upload, Globe, User, 
+import {
+  ArrowLeft, Save, Eye, Plus, X, Upload, Globe, User,
   Lock, Users, DollarSign
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -44,10 +44,10 @@ export default function AdminCourseForm() {
     }
   }, [id]);
 
-  const loadCourse = () => {
-    const courseData = courseService.getById(id!);
-    if (courseData) {
-      setCourse(courseData);
+  const loadCourse = async () => {
+    const response = await coursesApi.getById(id!);
+    if (response.success && response.data) {
+      setCourse(response.data);
     } else {
       toast.error('Course not found');
       navigate('/admin/courses');
@@ -62,17 +62,21 @@ export default function AdminCourseForm() {
       data.status = 'published';
     }
 
+    console.log('Saving course...', isEditing ? 'UPDATE' : 'CREATE', data);
+
     let result;
     if (isEditing) {
-      result = courseService.update(id!, data);
+      result = await coursesApi.update(id!, data);
     } else {
-      result = courseService.create(data);
+      result = await coursesApi.create(data);
     }
+
+    console.log('Save result:', result);
 
     if (result.success) {
       toast.success(isEditing ? 'Course updated!' : 'Course created!');
-      if (!isEditing) {
-        navigate(`/admin/courses/${result.data!.id}/edit`);
+      if (!isEditing && result.data) {
+        navigate(`/admin/courses/${result.data._id || result.data.id}/edit`);
       }
     } else {
       toast.error(result.error || 'Failed to save course');
@@ -135,7 +139,7 @@ export default function AdminCourseForm() {
           <span className="text-sm">
             {course.status === 'published' ? 'Published' : 'Draft'}
           </span>
-          <Button 
+          <Button
             onClick={() => handleSave()}
             disabled={isLoading}
             className="bg-[#3B5BFF] hover:bg-[#2a4aee]"
@@ -245,15 +249,15 @@ export default function AdminCourseForm() {
                 <div className="bg-white rounded-xl p-6 shadow-sm">
                   <h4 className="font-medium mb-4">Quick Actions</h4>
                   <div className="space-y-2">
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       className="w-full justify-start"
                       onClick={() => navigate(`/admin/courses/${id}/lessons`)}
                     >
                       Manage Lessons
                     </Button>
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       className="w-full justify-start"
                       onClick={() => navigate(`/admin/courses/${id}/quiz`)}
                     >
@@ -296,11 +300,10 @@ export default function AdminCourseForm() {
                 ].map(option => (
                   <label
                     key={option.value}
-                    className={`flex items-start gap-4 p-4 rounded-xl border-2 cursor-pointer transition-colors ${
-                      course.visibility === option.value
-                        ? 'border-[#3B5BFF] bg-[#3B5BFF]/5'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
+                    className={`flex items-start gap-4 p-4 rounded-xl border-2 cursor-pointer transition-colors ${course.visibility === option.value
+                      ? 'border-[#3B5BFF] bg-[#3B5BFF]/5'
+                      : 'border-gray-200 hover:border-gray-300'
+                      }`}
                   >
                     <input
                       type="radio"

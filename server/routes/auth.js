@@ -56,15 +56,20 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
     try {
         const { email, password } = req.body;
+        console.log('Login attempt:', { email, passwordLength: password?.length });
 
         // Find user
         const user = await User.findOne({ email });
+        console.log('User found:', !!user);
+
         if (!user) {
             return res.status(401).json({ success: false, error: 'Invalid credentials' });
         }
 
         // Check password
         const isMatch = await user.comparePassword(password);
+        console.log('Password match:', isMatch);
+
         if (!isMatch) {
             return res.status(401).json({ success: false, error: 'Invalid credentials' });
         }
@@ -76,11 +81,13 @@ router.post('/login', async (req, res) => {
             { expiresIn: '7d' }
         );
 
+        console.log('Login successful for:', email);
         res.json({
             success: true,
             data: { user, token }
         });
     } catch (error) {
+        console.error('Login error:', error);
         res.status(500).json({ success: false, error: error.message });
     }
 });

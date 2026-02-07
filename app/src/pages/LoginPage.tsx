@@ -21,34 +21,34 @@ export default function LoginPage() {
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
-    
+
     if (!formData.email.trim()) {
       newErrors.email = 'Email is required';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = 'Invalid email format';
     }
-    
+
     if (!formData.password) {
       newErrors.password = 'Password is required';
     }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validate()) return;
-    
+
     setIsLoading(true);
-    
+
     try {
       const result = await login({
         email: formData.email,
         password: formData.password
       });
-      
+
       if (result.success) {
         toast.success('Welcome back!');
         navigate('/my-courses');
@@ -64,11 +64,11 @@ export default function LoginPage() {
 
   const fillDemoCredentials = (role: string) => {
     const demos: Record<string, { email: string; password: string }> = {
-      admin: { email: 'admin@learnsphere.com', password: 'admin' },
-      instructor: { email: 'instructor@learnsphere.com', password: 'instructor' },
-      learner: { email: 'learner@learnsphere.com', password: 'learner' }
+      admin: { email: 'admin@learnsphere.com', password: 'password123' },
+      instructor: { email: 'instructor@learnsphere.com', password: 'password123' },
+      learner: { email: 'learner@learnsphere.com', password: 'password123' }
     };
-    
+
     if (demos[role]) {
       setFormData(demos[role]);
       setErrors({});
@@ -142,8 +142,8 @@ export default function LoginPage() {
                 )}
               </div>
 
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 className="w-full bg-[#3B5BFF] hover:bg-[#2a4aee]"
                 disabled={isLoading}
               >
