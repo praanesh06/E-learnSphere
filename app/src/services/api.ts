@@ -72,6 +72,20 @@ export const authApi = {
     isAuthenticated: () => {
         return !!getToken();
     },
+
+    updateProfile: async (data: any) => {
+        const res = await fetchWithAuth('/auth/me', {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
+        const result = await res.json();
+        if (result.success && result.data) {
+            // Update stored user
+            const currentUser = JSON.parse(localStorage.getItem('ls_current_user') || '{}');
+            localStorage.setItem('ls_current_user', JSON.stringify({ ...currentUser, ...result.data.user }));
+        }
+        return result;
+    },
 };
 
 // Courses API
@@ -294,6 +308,14 @@ export const reviewsApi = {
         const res = await fetchWithAuth(`/reviews/${id}`, {
             method: 'DELETE',
         });
+        return res.json();
+    },
+};
+
+// Activities API
+export const activitiesApi = {
+    getMyActivities: async () => {
+        const res = await fetchWithAuth('/activities/my');
         return res.json();
     },
 };

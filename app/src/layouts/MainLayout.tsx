@@ -50,11 +50,10 @@ export default function MainLayout() {
                   <Link
                     key={link.to}
                     to={link.to}
-                    className={`text-sm font-medium transition-colors ${
-                      isActive(link.to)
+                    className={`text-sm font-medium transition-colors ${isActive(link.to)
                         ? 'text-[#3B5BFF]'
                         : 'text-[#6B7280] hover:text-[#0B0E14]'
-                    }`}
+                      }`}
                   >
                     {link.label}
                   </Link>
@@ -79,9 +78,9 @@ export default function MainLayout() {
                   )}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" className="relative h-9 w-9 rounded-full">
-                        <div className="w-9 h-9 bg-[#3B5BFF] rounded-full flex items-center justify-center text-white font-medium">
-                          {user?.name.charAt(0).toUpperCase()}
+                      <Button variant="ghost" className="relative h-9 w-9 rounded-full p-0 overflow-hidden focus-visible:ring-offset-0">
+                        <div className="w-full h-full bg-[#3B5BFF] flex items-center justify-center text-white font-medium">
+                          {user?.name?.charAt(0).toUpperCase()}
                         </div>
                       </Button>
                     </DropdownMenuTrigger>
@@ -114,8 +113,8 @@ export default function MainLayout() {
                   <Button variant="ghost" size="sm" onClick={() => navigate('/login')}>
                     Sign in
                   </Button>
-                  <Button 
-                    size="sm" 
+                  <Button
+                    size="sm"
                     onClick={() => navigate('/register')}
                     className="bg-[#3B5BFF] hover:bg-[#2a4aee]"
                   >

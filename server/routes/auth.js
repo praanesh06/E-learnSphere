@@ -95,9 +95,35 @@ router.post('/login', async (req, res) => {
 // Get current user
 router.get('/me', auth, async (req, res) => {
     try {
+        const user = await User.findById(req.user._id);
         res.json({
             success: true,
-            data: { user: req.user }
+            data: { user }
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Update current user
+router.put('/me', auth, async (req, res) => {
+    try {
+        const { name, email, password } = req.body;
+        const user = await User.findById(req.user._id);
+
+        if (!user) {
+            return res.status(404).json({ success: false, error: 'User not found' });
+        }
+
+        if (name) user.name = name;
+        if (email) user.email = email;
+        if (password) user.password = password;
+
+        await user.save();
+
+        res.json({
+            success: true,
+            data: { user }
         });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });

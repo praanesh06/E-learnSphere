@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { enrollmentsApi, authApi } from '@/services/api';
+import { enrollmentsApi, authApi, activitiesApi } from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
@@ -29,32 +29,32 @@ export default function MyCoursesPage() {
       return;
     }
 
-    // Load enrolled courses from real API
-    const enrollmentsResponse = await enrollmentsApi.getByUser();
-    if (enrollmentsResponse.success && enrollmentsResponse.data) {
-      // Transform enrollments to courses with progress
-      const coursesWithProgress = enrollmentsResponse.data.map((e: any) => ({
-        ...e.course,
-        id: e.course?._id || e.course?.id || e.courseId,
-        enrollment: e,
-        progress: e.progress || 0,
-        lessonCount: e.course?.lessonsCount || 0
-      }));
-      setCourses(coursesWithProgress);
+    try {
+      // Load enrolled courses from real API
+      const enrollmentsResponse = await enrollmentsApi.getByUser();
+      if (enrollmentsResponse.success && enrollmentsResponse.data) {
+        // Transform enrollments to courses with progress
+        const coursesWithProgress = enrollmentsResponse.data.map((e: any) => ({
+          ...e.course,
+          id: e.course?._id || e.course?.id || e.courseId,
+          enrollment: e,
+          progress: e.progress || 0,
+          lessonCount: e.course?.lessonsCount || 0
+        }));
+        setCourses(coursesWithProgress);
+      }
+
+      // Load activities and points
+      const activitiesResponse = await activitiesApi.getMyActivities();
+      if (activitiesResponse.success && activitiesResponse.data) {
+        setPoints(activitiesResponse.data.points);
+        setActivities(activitiesResponse.data.activities);
+      }
+    } catch (error) {
+      console.error('Failed to load dashboard data:', error);
+    } finally {
+      setIsLoading(false);
     }
-
-    // For now, use placeholder points until we have a real points API
-    setPoints({
-      userId: currentUser._id || currentUser.id,
-      totalPoints: 0,
-      streakDays: 0,
-      coursesCompleted: 0,
-      quizzesPassed: 0,
-      badges: []
-    });
-
-    setActivities([]);
-    setIsLoading(false);
   };
 
   const getBadgeLevel = (points: number) => {

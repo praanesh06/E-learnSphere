@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const Course = require('../models/Course');
 const Lesson = require('../models/Lesson');
 const Enrollment = require('../models/Enrollment');
@@ -27,6 +28,9 @@ router.get('/', async (req, res) => {
 // Get single course by ID
 router.get('/:id', async (req, res) => {
     try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(404).json({ success: false, error: 'Course not found' });
+        }
         const course = await Course.findById(req.params.id);
         if (!course) {
             return res.status(404).json({ success: false, error: 'Course not found' });
@@ -62,6 +66,9 @@ router.post('/', auth, authorize('instructor', 'admin'), async (req, res) => {
 // Update course
 router.put('/:id', auth, authorize('instructor', 'admin'), async (req, res) => {
     try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(404).json({ success: false, error: 'Course not found' });
+        }
         const course = await Course.findByIdAndUpdate(
             req.params.id,
             { ...req.body, updatedAt: new Date() },
@@ -81,6 +88,9 @@ router.put('/:id', auth, authorize('instructor', 'admin'), async (req, res) => {
 // Delete course
 router.delete('/:id', auth, authorize('instructor', 'admin'), async (req, res) => {
     try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(404).json({ success: false, error: 'Course not found' });
+        }
         const course = await Course.findByIdAndDelete(req.params.id);
 
         if (!course) {
@@ -99,6 +109,9 @@ router.delete('/:id', auth, authorize('instructor', 'admin'), async (req, res) =
 // Increment course views
 router.post('/:id/view', async (req, res) => {
     try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(404).json({ success: false, error: 'Course not found' });
+        }
         const course = await Course.findByIdAndUpdate(
             req.params.id,
             { $inc: { views: 1 } },

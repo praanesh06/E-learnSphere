@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { authService, badgeService, userPointsService } from '@/services/mockApi';
+import { authApi, activitiesApi } from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,9 +9,16 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { User, Mail, Award, Trophy, Flame, BookOpen, CheckCircle, Save } from 'lucide-react';
+import { User, Mail, Award, Trophy, Flame, BookOpen, CheckCircle, Save, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import type { User as UserType, Badge as BadgeType, UserPoints } from '@/types';
+
+const ALL_BADGES: BadgeType[] = [
+  { id: 'b1', name: 'First Steps', description: 'Earn your first 100 points', pointsRequired: 100, color: '#22c55e', icon: '🌱' },
+  { id: 'b2', name: 'Consistent Learner', description: 'Reach 500 points', pointsRequired: 500, color: '#3b82f6', icon: '📚' },
+  { id: 'b3', name: 'Knowledge Master', description: 'Reach 1000 points', pointsRequired: 1000, color: '#8b5cf6', icon: '🏆' },
+  { id: 'b4', name: 'Scholar', description: 'Reach 2500 points', pointsRequired: 2500, color: '#f59e0b', icon: '🎓' },
+];
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -19,37 +26,65 @@ export default function ProfilePage() {
   const [points, setPoints] = useState<UserPoints | null>(null);
   const [badges, setBadges] = useState<BadgeType[]>([]);
   const [allBadges, setAllBadges] = useState<BadgeType[]>([]);
+  const [activeTab, setActiveTab] = useState('overview');
   const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState({ name: '', email: '' });
+  const [formData, setFormData] = useState({ name: '', email: '', password: '', confirmPassword: '' });
 
   useEffect(() => {
     loadProfileData();
   }, []);
 
-  const loadProfileData = () => {
-    const currentUser = authService.getCurrentUser();
+  const loadProfileData = async () => {
+    const currentUser = authApi.getCurrentUser();
     if (!currentUser) {
       navigate('/login');
       return;
     }
 
     setUser(currentUser);
-    setFormData({ name: currentUser.name, email: currentUser.email });
+    setFormData({ name: currentUser.name, email: currentUser.email, password: '', confirmPassword: '' });
 
-    const userPoints = userPointsService.getByUser(currentUser.id);
-    setPoints(userPoints);
+    try {
+      const activitiesResponse = await activitiesApi.getMyActivities();
+      if (activitiesResponse.success && activitiesResponse.data) {
+        const { points } = activitiesResponse.data;
+        setPoints(points);
 
-    const userBadges = badgeService.getUserBadges(currentUser.id);
-    setBadges(userBadges);
-
-    const all = badgeService.getAll();
-    setAllBadges(all);
+        // Calculate earned badges
+        const earned = ALL_BADGES.filter(b => points.totalPoints >= b.pointsRequired);
+        setBadges(earned);
+        setAllBadges(ALL_BADGES);
+      }
+    } catch (error) {
+      console.error('Failed to load profile data', error);
+    }
   };
 
-  const handleSave = () => {
-    // In a real app, this would update the user
-    toast.success('Profile updated successfully!');
-    setIsEditing(false);
+  const handleSave = async () => {
+    if (formData.password) {
+      if (formData.password.length < 6) {
+        toast.error('Password must be at least 6 characters');
+        return;
+      }
+      if (formData.password !== formData.confirmPassword) {
+        toast.error('Passwords do not match');
+        return;
+      }
+    }
+
+    try {
+      const res = await authApi.updateProfile(formData);
+      if (res.success && res.data) {
+        toast.success('Profile updated successfully!');
+        setUser(res.data.user);
+        setFormData(prev => ({ ...prev, password: '', confirmPassword: '' }));
+        setIsEditing(false);
+      } else {
+        toast.error(res.error || 'Failed to update profile');
+      }
+    } catch (error) {
+      toast.error('Failed to update profile');
+    }
   };
 
   const getBadgeLevel = (points: number) => {
@@ -93,9 +128,16 @@ export default function ProfilePage() {
                   )}
                 </div>
               </div>
-              <Button 
-                variant="outline" 
-                onClick={() => setIsEditing(!isEditing)}
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (isEditing) {
+                    setIsEditing(false);
+                  } else {
+                    setActiveTab('settings');
+                    setIsEditing(true);
+                  }
+                }}
               >
                 {isEditing ? 'Cancel' : 'Edit Profile'}
               </Button>
@@ -103,7 +145,7 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
 
-        <Tabs defaultValue="overview" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="bg-white">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="badges">Badges</TabsTrigger>
@@ -181,7 +223,7 @@ export default function ProfilePage() {
                 {badges.length > 0 ? (
                   <div className="flex flex-wrap gap-3">
                     {badges.slice(0, 5).map(badge => (
-                      <div 
+                      <div
                         key={badge.id}
                         className="flex items-center gap-2 px-4 py-2 rounded-full"
                         style={{ backgroundColor: `${badge.color}20` }}
@@ -212,16 +254,14 @@ export default function ProfilePage() {
                   {allBadges.map(badge => {
                     const hasBadge = badges.some(b => b.id === badge.id);
                     return (
-                      <div 
+                      <div
                         key={badge.id}
-                        className={`flex items-center gap-4 p-4 rounded-xl ${
-                          hasBadge ? 'bg-white' : 'bg-gray-50'
-                        }`}
-                      >
-                        <div 
-                          className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl ${
-                            hasBadge ? '' : 'grayscale opacity-50'
+                        className={`flex items-center gap-4 p-4 rounded-xl ${hasBadge ? 'bg-white' : 'bg-gray-50'
                           }`}
+                      >
+                        <div
+                          className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl ${hasBadge ? '' : 'grayscale opacity-50'
+                            }`}
                           style={{ backgroundColor: `${badge.color}20` }}
                         >
                           {badge.icon}
@@ -241,8 +281,8 @@ export default function ProfilePage() {
                                 {points ? Math.min(points.totalPoints, badge.pointsRequired) : 0} / {badge.pointsRequired}
                               </span>
                             </div>
-                            <Progress 
-                              value={points ? Math.min(100, (points.totalPoints / badge.pointsRequired) * 100) : 0} 
+                            <Progress
+                              value={points ? Math.min(100, (points.totalPoints / badge.pointsRequired) * 100) : 0}
                               className="h-1.5"
                             />
                           </div>
@@ -285,6 +325,34 @@ export default function ProfilePage() {
                           value={formData.email}
                           onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                           className="pl-10"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="password">New Password</Label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input
+                          id="password"
+                          type="password"
+                          value={formData.password}
+                          onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                          className="pl-10"
+                          placeholder="Leave blank to keep current"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="confirmPassword">Confirm Password</Label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input
+                          id="confirmPassword"
+                          type="password"
+                          value={formData.confirmPassword}
+                          onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                          className="pl-10"
+                          placeholder="Confirm new password"
                         />
                       </div>
                     </div>

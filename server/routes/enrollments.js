@@ -5,10 +5,26 @@ const { auth } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Get enrollments for current user
+// Get enrollments for current user with course details
 router.get('/my', auth, async (req, res) => {
     try {
-        const enrollments = await Enrollment.find({ userId: req.user._id.toString() });
+        const enrollments = await Enrollment.find({ userId: req.user._id.toString() }).lean();
+
+        // Fetch course details manually since schema uses String for IDs
+        const courseIds = enrollments.map(e => e.courseId);
+        const courses = await require('../models/Course').find({ _id: { $in: courseIds } }).lean();
+        const courseMap = new Map(courses.map(c => [c._id.toString(), c]));
+
+        // Attach course details and lesson count
+        for (const enrollment of enrollments) {
+            const course = courseMap.get(enrollment.courseId);
+            if (course) {
+                // Get lesson count for progress calculation
+                const lessonsCount = await Lesson.countDocuments({ courseId: course._id });
+                enrollment.course = { ...course, lessonsCount };
+            }
+        }
+
         res.json({ success: true, data: enrollments });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });

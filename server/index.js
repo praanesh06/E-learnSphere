@@ -31,6 +31,7 @@ app.use('/api/lessons', lessonRoutes);
 app.use('/api/quizzes', quizRoutes);
 app.use('/api/enrollments', enrollmentRoutes);
 app.use('/api/reviews', reviewRoutes);
+app.use('/api/activities', require('./routes/activities'));
 
 // Root route
 app.get('/', (req, res) => {
